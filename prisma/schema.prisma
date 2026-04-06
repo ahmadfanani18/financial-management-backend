@@ -1,0 +1,296 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum AccountType {
+  BANK
+  EWALLET
+  CASH
+  CREDIT_CARD
+  INVESTMENT
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum CategoryType {
+  INCOME
+  EXPENSE
+}
+
+enum BudgetPeriod {
+  MONTHLY
+  WEEKLY
+  YEARLY
+  CUSTOM
+}
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum PlanStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum ReminderType {
+  RECURRING
+  ONE_TIME
+}
+
+enum NotificationType {
+  BUDGET_WARNING
+  GOAL_MILESTONE
+  REMINDER
+  SYSTEM
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  name         String
+  password     String?
+  avatar       String?
+  role         UserRole  @default(MEMBER)
+  preferences  Json      @default("{}")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  accounts     Account[]
+  categories   Category[]
+  tags         Tag[]
+  transactions Transaction[]
+  budgets      Budget[]
+  goals        Goal[]
+  plans        Plan[]
+  reminders    Reminder[]
+  notifications Notification[]
+}
+
+model Account {
+  id          String      @id @default(uuid())
+  userId      String
+  name        String
+  type        AccountType
+  balance     Decimal     @default(0) @db.Decimal(15, 2)
+  currency    String      @default("IDR")
+  icon        String      @default("wallet")
+  color       String      @default("#0EA5E9")
+  isArchived  Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[] @relation("AccountTransactions")
+  fromTransfers Transaction[] @relation("FromTransfers")
+  toTransfers   Transaction[] @relation("ToTransfers")
+}
+
+model Category {
+  id          String       @id @default(uuid())
+  userId      String
+  name        String
+  type        CategoryType
+  icon        String       @default("tag")
+  color       String       @default("#8B5CF6")
+  isDefault   Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  budgets      Budget[]
+}
+
+model Tag {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  color     String   @default("#10B981")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions TransactionTag[]
+}
+
+model Transaction {
+  id                String          @id @default(uuid())
+  userId            String
+  accountId         String
+  categoryId        String?
+  type              TransactionType
+  amount            Decimal         @db.Decimal(15, 2)
+  description       String
+  date              DateTime
+  receiptUrl        String?
+  fromAccountId     String?
+  toAccountId       String?
+  isRecurring       Boolean         @default(false)
+  recurringPattern  Json?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account           Account         @relation("AccountTransactions", fields: [accountId], references: [id])
+  category          Category?      @relation(fields: [categoryId], references: [id])
+  fromAccount       Account?        @relation("FromTransfers", fields: [fromAccountId], references: [id])
+  toAccount         Account?        @relation("ToTransfers", fields: [toAccountId], references: [id])
+  tags              TransactionTag[]
+}
+
+model TransactionTag {
+  transactionId String
+  tagId         String
+
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  tag         Tag         @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([transactionId, tagId])
+}
+
+model Budget {
+  id                String       @id @default(uuid())
+  userId            String
+  categoryId        String
+  amount            Decimal      @db.Decimal(15, 2)
+  period            BudgetPeriod @default(MONTHLY)
+  startDate         DateTime
+  endDate           DateTime?
+  warningThreshold  Int          @default(80)
+  isActive          Boolean      @default(true)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category          Category     @relation(fields: [categoryId], references: [id])
+  planBudgets       PlanBudget[]
+}
+
+model Goal {
+  id            String     @id @default(uuid())
+  userId        String
+  name          String
+  targetAmount  Decimal    @db.Decimal(15, 2)
+  currentAmount Decimal    @default(0) @db.Decimal(15, 2)
+  deadline      DateTime
+  icon          String     @default("target")
+  color         String     @default("#10B981")
+  status        GoalStatus @default(ACTIVE)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contributions GoalContribution[]
+  planGoals     PlanGoal[]
+}
+
+model GoalContribution {
+  id        String   @id @default(uuid())
+  goalId    String
+  amount    Decimal  @db.Decimal(15, 2)
+  date      DateTime
+  note      String?
+  createdAt DateTime @default(now())
+
+  goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+}
+
+model Plan {
+  id          String      @id @default(uuid())
+  userId      String
+  name        String
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  status      PlanStatus  @default(ACTIVE)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  milestones  PlanMilestone[]
+  planBudgets PlanBudget[]
+  planGoals   PlanGoal[]
+}
+
+model PlanMilestone {
+  id           String    @id @default(uuid())
+  planId       String
+  title        String
+  description  String?
+  targetDate   DateTime
+  targetAmount Decimal?  @db.Decimal(15, 2)
+  isCompleted  Boolean   @default(false)
+  completedAt  DateTime?
+  order        Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  plan         Plan      @relation(fields: [planId], references: [id], onDelete: Cascade)
+}
+
+model PlanBudget {
+  planId    String
+  budgetId  String
+
+  plan      Plan    @relation(fields: [planId], references: [id], onDelete: Cascade)
+  budget    Budget  @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  @@id([planId, budgetId])
+}
+
+model PlanGoal {
+  planId String
+  goalId String
+
+  plan   Plan  @relation(fields: [planId], references: [id], onDelete: Cascade)
+  goal   Goal  @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@id([planId, goalId])
+}
+
+model Reminder {
+  id               String       @id @default(uuid())
+  userId           String
+  title            String
+  description      String?
+  type             ReminderType @default(ONE_TIME)
+  date             DateTime
+  recurrencePattern Json?
+  isActive         Boolean      @default(true)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  type      NotificationType @default(SYSTEM)
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
