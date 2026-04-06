@@ -5,6 +5,9 @@ import { config } from './config/index.js';
 import { prisma } from './config/prisma.js';
 import { authenticate } from './middleware/auth.js';
 import { authRoutes } from './modules/auth/routes.js';
+import { accountRoutes } from './modules/account/routes.js';
+import { categoryRoutes } from './modules/category/routes.js';
+import { transactionRoutes } from './modules/transaction/routes.js';
 
 const fastify = Fastify({
   logger: true,
@@ -24,6 +27,9 @@ fastify.decorate('authenticate', authenticate);
 fastify.get('/health', async () => ({ status: 'ok' }));
 
 await fastify.register(authRoutes, { prefix: '/api/auth' });
+await fastify.register(accountRoutes, { prefix: '/api/accounts' });
+await fastify.register(categoryRoutes, { prefix: '/api/categories' });
+await fastify.register(transactionRoutes, { prefix: '/api/transactions' });
 
 fastify.addHook('onClose', async () => {
   await prisma.$disconnect();
