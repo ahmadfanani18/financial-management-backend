@@ -9,7 +9,7 @@ export async function registerHandler(
   const input = registerSchema.parse(request.body);
   const user = await authService.register(input);
   
-  const token = reply.jwtSign({
+  const token = await reply.jwtSign({
     id: user.id,
     email: user.email,
     name: user.name,
@@ -25,7 +25,7 @@ export async function loginHandler(
   const input = loginSchema.parse(request.body);
   const user = await authService.login(input);
   
-  const token = reply.jwtSign({
+  const token = await reply.jwtSign({
     id: user.id,
     email: user.email,
     name: user.name,
