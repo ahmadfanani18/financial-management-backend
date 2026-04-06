@@ -9,7 +9,29 @@ import {
 export async function aiRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authenticate);
 
-  fastify.post('/generate-plan', generatePlanHandler);
-  fastify.post('/predict-spending', predictSpendingHandler);
+  fastify.post('/generate-plan', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['monthlyIncome'],
+        properties: {
+          monthlyIncome: { type: 'number' },
+          currency: { type: 'string', default: 'IDR' },
+        },
+      },
+    },
+  }, generatePlanHandler);
+
+  fastify.post('/predict-spending', {
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          months: { type: 'number', minimum: 1, maximum: 12, default: 3 },
+        },
+      },
+    },
+  }, predictSpendingHandler);
+
   fastify.post('/suggest-savings', suggestSavingsHandler);
 }

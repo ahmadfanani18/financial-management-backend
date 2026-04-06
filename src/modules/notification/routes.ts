@@ -12,10 +12,35 @@ import {
 export async function notificationRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authenticate);
 
-  fastify.get('/', getNotificationsHandler);
-  fastify.get('/unread', getUnreadNotificationsHandler);
-  fastify.get('/unread/count', getUnreadCountHandler);
-  fastify.patch('/:id/read', markAsReadHandler);
+  fastify.get('/', {
+    schema: {
+      response: { 200: { type: 'object', properties: { notifications: { type: 'array' } } } },
+    },
+  }, getNotificationsHandler);
+
+  fastify.get('/unread', {
+    schema: {
+      response: { 200: { type: 'object', properties: { notifications: { type: 'array' } } } },
+    },
+  }, getUnreadNotificationsHandler);
+
+  fastify.get('/unread/count', {
+    schema: {
+      response: { 200: { type: 'object', properties: { count: { type: 'number' } } } },
+    },
+  }, getUnreadCountHandler);
+
+  fastify.patch('/:id/read', {
+    schema: {
+      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } } },
+    },
+  }, markAsReadHandler);
+
   fastify.patch('/read-all', markAllAsReadHandler);
-  fastify.delete('/:id', deleteNotificationHandler);
+
+  fastify.delete('/:id', {
+    schema: {
+      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } } },
+    },
+  }, deleteNotificationHandler);
 }

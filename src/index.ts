@@ -1,6 +1,8 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
+import swagger from '@fastify/swagger';
+import swaggerUi from '@fastify/swagger-ui';
 import { config } from './config/index.js';
 import { prisma } from './config/prisma.js';
 import { authenticate } from './middleware/auth.js';
@@ -22,6 +24,29 @@ const fastify = Fastify({
 await fastify.register(cors, {
   origin: true,
   credentials: true,
+});
+
+await fastify.register(swagger, {
+  openapi: {
+    info: {
+      title: 'Financial Management API',
+      description: 'API for managing personal finances',
+      version: '1.0.0',
+    },
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+        },
+      },
+    },
+  },
+});
+
+await fastify.register(swaggerUi, {
+  routePrefix: '/docs',
 });
 
 await fastify.register(jwt, {
