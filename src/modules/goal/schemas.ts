@@ -1,0 +1,25 @@
+import { z } from 'zod';
+
+export const createGoalSchema = z.object({
+  name: z.string().min(1, 'Nama target wajib diisi'),
+  targetAmount: z.number().positive('Target jumlah harus positif'),
+  deadline: z.coerce.date(),
+  icon: z.string().default('target'),
+  color: z.string().default('#10B981'),
+});
+
+export const updateGoalSchema = createGoalSchema.partial();
+
+export const goalIdSchema = z.object({
+  id: z.string().uuid('Invalid UUID format'),
+});
+
+export const contributionSchema = z.object({
+  amount: z.number().positive('Jumlah kontribusi harus positif'),
+  date: z.coerce.date(),
+  note: z.string().optional(),
+});
+
+export type CreateGoalInput = z.infer<typeof createGoalSchema>;
+export type UpdateGoalInput = z.infer<typeof updateGoalSchema>;
+export type ContributionInput = z.infer<typeof contributionSchema>;

@@ -8,6 +8,9 @@ import { authRoutes } from './modules/auth/routes.js';
 import { accountRoutes } from './modules/account/routes.js';
 import { categoryRoutes } from './modules/category/routes.js';
 import { transactionRoutes } from './modules/transaction/routes.js';
+import { budgetRoutes } from './modules/budget/routes.js';
+import { goalRoutes } from './modules/goal/routes.js';
+import { planRoutes } from './modules/plan/routes.js';
 
 const fastify = Fastify({
   logger: true,
@@ -30,6 +33,9 @@ await fastify.register(authRoutes, { prefix: '/api/auth' });
 await fastify.register(accountRoutes, { prefix: '/api/accounts' });
 await fastify.register(categoryRoutes, { prefix: '/api/categories' });
 await fastify.register(transactionRoutes, { prefix: '/api/transactions' });
+await fastify.register(budgetRoutes, { prefix: '/api/budgets' });
+await fastify.register(goalRoutes, { prefix: '/api/goals' });
+await fastify.register(planRoutes, { prefix: '/api/plans' });
 
 fastify.addHook('onClose', async () => {
   await prisma.$disconnect();
