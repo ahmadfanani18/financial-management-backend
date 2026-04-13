@@ -1,13 +1,15 @@
 import { prisma } from '../../config/prisma.js';
 import type { CreateTransactionInput, UpdateTransactionInput, TransactionQuery } from './schemas.js';
 
+const VALID_TYPES = ['INCOME', 'EXPENSE', 'TRANSFER'];
+
 export class TransactionService {
   async getAll(userId: string, query: TransactionQuery) {
     const where: any = { userId };
     
     if (query.accountId) where.accountId = query.accountId;
     if (query.categoryId) where.categoryId = query.categoryId;
-    if (query.type) where.type = query.type;
+    if (query.type && VALID_TYPES.includes(query.type)) where.type = query.type;
     if (query.startDate && query.endDate) {
       where.date = { gte: query.startDate, lte: query.endDate };
     }
@@ -176,11 +178,11 @@ export class TransactionService {
 
     const income = transactions
       .filter(t => t.type === 'INCOME')
-      .reduce((sum, t) => sum + Number(t.amount), 0);
+      .reduce((sum, t) => sum + Number(t.amount.toString()), 0);
 
     const expense = transactions
       .filter(t => t.type === 'EXPENSE')
-      .reduce((sum, t) => sum + Number(t.amount), 0);
+      .reduce((sum, t) => sum + Number(t.amount.toString()), 0);
 
     return { income, expense, balance: income - expense };
   }

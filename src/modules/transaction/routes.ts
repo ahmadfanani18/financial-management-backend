@@ -22,7 +22,7 @@ export async function transactionRoutes(fastify: FastifyInstance) {
           limit: { type: 'number', default: 20 },
           accountId: { type: 'string', format: 'uuid' },
           categoryId: { type: 'string', format: 'uuid' },
-          type: { type: 'string', enum: ['INCOME', 'EXPENSE', 'TRANSFER'] },
+          type: { type: 'string' },  // Validation handled in service layer
           startDate: { type: 'string', format: 'date' },
           endDate: { type: 'string', format: 'date' },
           search: { type: 'string' },
