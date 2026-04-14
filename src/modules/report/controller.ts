@@ -45,3 +45,22 @@ export async function getNetWorthHandler(
   const netWorth = await reportService.getNetWorth(request.user.id);
   return reply.send(netWorth);
 }
+
+export async function exportTransactionsHandler(
+  request: FastifyRequest<{ Querystring: { year: string; month: string } }>,
+  reply: FastifyReply
+) {
+  const { year, month } = monthlyReportSchema.parse(request.query);
+  const csv = await reportService.exportTransactions(
+    request.user.id,
+    Number(year),
+    Number(month)
+  );
+
+  reply.header('Content-Type', 'text/csv; charset=utf-8');
+  reply.header(
+    'Content-Disposition',
+    `attachment; filename="transaksi-${year}-${month}.csv"`
+  );
+  return reply.send(csv);
+}

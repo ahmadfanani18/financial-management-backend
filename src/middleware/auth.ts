@@ -11,8 +11,13 @@ export async function authenticate(
   }
 }
 
-declare module 'fastify' {
-  interface FastifyRequest {
+declare module '@fastify/jwt' {
+  interface FastifyJWT {
+    payload: {
+      id: string;
+      email: string;
+      name: string;
+    };
     user: {
       id: string;
       email: string;

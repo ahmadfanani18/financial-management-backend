@@ -6,6 +6,7 @@ import {
   getTrendsHandler,
   getCashFlowHandler,
   getNetWorthHandler,
+  exportTransactionsHandler,
 } from './controller.js';
 
 export async function reportRoutes(fastify: FastifyInstance) {
@@ -62,4 +63,17 @@ export async function reportRoutes(fastify: FastifyInstance) {
   }, getCashFlowHandler);
 
   fastify.get('/net-worth', getNetWorthHandler);
+
+  fastify.get('/export/transactions', {
+    schema: {
+      querystring: {
+        type: 'object',
+        required: ['year', 'month'],
+        properties: {
+          year: { type: 'number' },
+          month: { type: 'number', minimum: 1, maximum: 12 },
+        },
+      },
+    },
+  }, exportTransactionsHandler);
 }

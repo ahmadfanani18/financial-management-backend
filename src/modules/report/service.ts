@@ -1,5 +1,6 @@
 import { prisma } from '../../config/prisma.js';
 import type { ReportQuery, MonthlyReportInput, TrendsInput } from './schemas.js';
+import Papa from 'papaparse';
 
 export class ReportService {
   async getMonthlyReport(userId: string, year: number, month: number) {
@@ -175,6 +176,37 @@ export class ReportService {
     });
 
     return Object.values(grouped).sort((a, b) => b.amount - a.amount);
+  }
+
+  async exportTransactions(userId: string, year: number, month: number): Promise<string> {
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59);
+
+    const transactions = await prisma.transaction.findMany({
+      where: {
+        userId,
+        date: { gte: startDate, lte: endDate },
+      },
+      include: {
+        account: { select: { name: true } },
+        category: { select: { name: true } },
+      },
+      orderBy: { date: 'desc' },
+    });
+
+    const data = transactions.map((t) => ({
+      Tanggal: t.date.toISOString().split('T')[0],
+      Deskripsi: t.description,
+      Kategori: t.category?.name || 'Tanpa Kategori',
+      Akun: t.account?.name || 'Tanpa Akun',
+      Tipe: t.type === 'INCOME' ? 'Pemasukan' : t.type === 'EXPENSE' ? 'Pengeluaran' : 'Transfer',
+      Jumlah: t.amount,
+    }));
+
+    return Papa.unparse(data, {
+      header: true,
+      delimiter: ';',
+    });
   }
 }
 
