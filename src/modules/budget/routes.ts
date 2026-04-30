@@ -4,6 +4,7 @@ import {
   getBudgetsHandler,
   getBudgetHandler,
   getBudgetSummaryHandler,
+  updateBudgetSpentHandler,
   createBudgetHandler,
   updateBudgetHandler,
   deleteBudgetHandler,
@@ -19,6 +20,13 @@ export async function budgetRoutes(fastify: FastifyInstance) {
   }, getBudgetsHandler);
 
   fastify.get('/summary', {}, getBudgetSummaryHandler);
+
+  fastify.put('/:id/spent', {
+    schema: {
+      params: { type: 'object', properties: { id: { type: 'string' } } },
+      body: { type: 'object', properties: { spent: { type: 'number' } } },
+    },
+  }, updateBudgetSpentHandler);
 
   fastify.get('/:id', {
     schema: {

@@ -47,6 +47,15 @@ export class BudgetService {
     });
   }
 
+  async updateSpent(id: string, userId: string, spent: number) {
+    await this.getById(id, userId);
+    return prisma.budget.update({
+      where: { id },
+      data: { spent },
+      include: { category: true },
+    });
+  }
+
   async delete(id: string, userId: string) {
     await this.getById(id, userId);
     await prisma.budget.delete({ where: { id } });

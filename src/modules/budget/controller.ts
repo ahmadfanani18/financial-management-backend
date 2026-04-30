@@ -46,6 +46,16 @@ export async function updateBudgetHandler(
   return reply.send({ budget });
 }
 
+export async function updateBudgetSpentHandler(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply
+) {
+  const { id } = budgetIdSchema.parse(request.params);
+  const { spent } = request.body as { spent: number };
+  const budget = await budgetService.updateSpent(id, request.user.id, spent);
+  return reply.send({ budget });
+}
+
 export async function deleteBudgetHandler(
   request: FastifyRequest<{ Params: { id: string } }>,
   reply: FastifyReply
