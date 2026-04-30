@@ -12,7 +12,7 @@ export const createAccountSchema = z.object({
 export const updateAccountSchema = createAccountSchema.partial();
 
 export const accountIdSchema = z.object({
-  id: z.string().uuid('Invalid UUID format'),
+  id: z.string().min(1, 'ID wajib diisi'),
 });
 
 export type CreateAccountInput = z.infer<typeof createAccountSchema>;
