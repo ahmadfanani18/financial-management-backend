@@ -3,6 +3,29 @@ import type { CreateTransactionInput, UpdateTransactionInput, TransactionQuery }
 
 const VALID_TYPES = ['INCOME', 'EXPENSE', 'TRANSFER'];
 
+function calculateBudgetEndDate(startDate: Date, period: string): Date {
+  const start = new Date(startDate);
+  switch (period) {
+    case 'MONTHLY':
+      return new Date(start.getFullYear(), start.getMonth() + 1, 0, 23, 59, 59);
+    case 'WEEKLY': {
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      end.setHours(23, 59, 59, 999);
+      return end;
+    }
+    case 'YEARLY': {
+      const end = new Date(start);
+      end.setFullYear(end.getFullYear() + 1);
+      end.setDate(end.getDate() - 1);
+      end.setHours(23, 59, 59, 999);
+      return end;
+    }
+    default:
+      return start;
+  }
+}
+
 export class TransactionService {
   async getAll(userId: string, query: TransactionQuery) {
     const where: any = { userId };
@@ -68,7 +91,58 @@ export class TransactionService {
     return { ...transaction, tags: transaction.tags.map(t => t.tag) };
   }
 
+  async validateCategoryForExpense(userId: string, categoryId: string, date: Date) {
+    const budgets = await prisma.budget.findMany({
+      where: {
+        userId,
+        categoryId,
+        isActive: true,
+      },
+    });
+
+    if (budgets.length === 0) {
+      throw new Error('Kategori ini belum memiliki budget. Buat budget terlebih dahulu sebelum membuat transaksi pengeluaran.');
+    }
+
+    const transactionDate = new Date(date);
+    let validBudget = null;
+
+    for (const budget of budgets) {
+      const startDate = new Date(budget.startDate);
+      const endDate = budget.endDate ? new Date(budget.endDate) : calculateBudgetEndDate(startDate, budget.period);
+
+      if (transactionDate >= startDate && transactionDate <= endDate) {
+        validBudget = budget;
+        break;
+      }
+    }
+
+    if (!validBudget) {
+      const periods = budgets.map(b => {
+        const s = new Date(b.startDate);
+        const e = b.endDate ? new Date(b.endDate) : calculateBudgetEndDate(s, b.period);
+        return `${s.toLocaleDateString('id-ID')} - ${e.toLocaleDateString('id-ID')}`;
+      }).join(', ');
+      throw new Error(`Transaksi pada tanggal ${transactionDate.toLocaleDateString('id-ID')} tidak berada dalam periode budget aktif (${periods}).`);
+    }
+
+    const startDate = new Date(validBudget.startDate);
+    const endDate = validBudget.endDate ? new Date(validBudget.endDate) : calculateBudgetEndDate(startDate, validBudget.period);
+    const periodLabels: Record<string, string> = { MONTHLY: 'Bulanan', WEEKLY: 'Mingguan', YEARLY: 'Tahunan' };
+    const periodLabel = periodLabels[validBudget.period] || validBudget.period;
+
+    if (transactionDate < startDate || transactionDate > endDate) {
+      throw new Error(`Transaksi berada di luar periode budget ${periodLabel} (${startDate.toLocaleDateString('id-ID')} - ${endDate.toLocaleDateString('id-ID')}).`);
+    }
+
+    return validBudget;
+  }
+
   async create(userId: string, input: CreateTransactionInput) {
+    if (input.type === 'EXPENSE' && input.categoryId) {
+      await this.validateCategoryForExpense(userId, input.categoryId, new Date(input.date));
+    }
+
     const { tagIds, ...data } = input;
     
     const transaction = await prisma.transaction.create({
