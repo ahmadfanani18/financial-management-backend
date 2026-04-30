@@ -1,22 +1,22 @@
 import { z } from 'zod';
 
 export const createTransactionSchema = z.object({
-  accountId: z.string().uuid('Invalid account ID'),
-  categoryId: z.string().uuid().optional(),
+  accountId: z.string().min(1, 'Akun wajib dipilih'),
+  categoryId: z.string().optional(),
   type: z.enum(['INCOME', 'EXPENSE', 'TRANSFER']),
   amount: z.number().positive('Jumlah harus positif'),
   description: z.string().default(''),
   date: z.coerce.date(),
   receiptUrl: z.string().url().optional(),
-  fromAccountId: z.string().uuid().optional(),
-  toAccountId: z.string().uuid().optional(),
+  fromAccountId: z.string().optional(),
+  toAccountId: z.string().optional(),
   isRecurring: z.boolean().default(false),
   recurringPattern: z.object({
     frequency: z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY']),
     interval: z.number().positive(),
     endDate: z.date().optional(),
   }).optional(),
-  tagIds: z.array(z.string().uuid()).optional(),
+  tagIds: z.array(z.string()).optional(),
 });
 
 export const updateTransactionSchema = createTransactionSchema.partial();

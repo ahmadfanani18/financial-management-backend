@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const reportQuerySchema = z.object({
   startDate: z.coerce.date(),
   endDate: z.coerce.date(),
-  accountId: z.string().uuid().optional(),
+  accountId: z.string().optional(),
 });
 
 export const monthlyReportSchema = z.object({

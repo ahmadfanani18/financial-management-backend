@@ -20,11 +20,11 @@ export async function transactionRoutes(fastify: FastifyInstance) {
         properties: {
           page: { type: 'number', default: 1 },
           limit: { type: 'number', default: 20 },
-          accountId: { type: 'string', format: 'uuid' },
-          categoryId: { type: 'string', format: 'uuid' },
-          type: { type: 'string' },  // Validation handled in service layer
-          startDate: { type: 'string', format: 'date' },
-          endDate: { type: 'string', format: 'date' },
+          accountId: { type: 'string' },
+          categoryId: { type: 'string' },
+          type: { type: 'string' },
+          startDate: { type: 'string' },
+          endDate: { type: 'string' },
           search: { type: 'string' },
         },
       },
@@ -55,7 +55,7 @@ export async function transactionRoutes(fastify: FastifyInstance) {
 
   fastify.get('/:id', {
     schema: {
-      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } } },
+      params: { type: 'object', properties: { id: { type: 'string' } } },
     },
   }, getTransactionHandler);
 
@@ -65,14 +65,14 @@ export async function transactionRoutes(fastify: FastifyInstance) {
         type: 'object',
         required: ['accountId', 'type', 'amount'],
         properties: {
-          accountId: { type: 'string', format: 'uuid' },
-          categoryId: { type: 'string', format: 'uuid' },
+          accountId: { type: 'string' },
+          categoryId: { type: 'string' },
           type: { type: 'string', enum: ['INCOME', 'EXPENSE', 'TRANSFER'] },
           amount: { type: 'number' },
           description: { type: 'string' },
           date: { type: 'string' },
-          fromAccountId: { type: 'string', format: 'uuid' },
-          toAccountId: { type: 'string', format: 'uuid' },
+          fromAccountId: { type: 'string' },
+          toAccountId: { type: 'string' },
         },
       },
     },
@@ -80,13 +80,13 @@ export async function transactionRoutes(fastify: FastifyInstance) {
 
   fastify.put('/:id', {
     schema: {
-      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } } },
+      params: { type: 'object', properties: { id: { type: 'string' } } },
     },
   }, updateTransactionHandler);
 
   fastify.delete('/:id', {
     schema: {
-      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } } },
+      params: { type: 'object', properties: { id: { type: 'string' } } },
     },
   }, deleteTransactionHandler);
 }
