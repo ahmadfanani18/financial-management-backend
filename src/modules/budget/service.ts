@@ -113,6 +113,20 @@ export class BudgetService {
     
     return results;
   }
+
+  async getSummary(userId: string) {
+    const budgetsWithSpending = await this.getAllWithSpending(userId);
+    
+    const totalBudget = budgetsWithSpending.reduce((sum, b) => sum + Number(b.amount), 0);
+    const totalSpent = budgetsWithSpending.reduce((sum, b) => sum + b.spent, 0);
+    
+    return {
+      totalBudget,
+      totalSpent,
+      remaining: totalBudget - totalSpent,
+      budgetCount: budgetsWithSpending.length,
+    };
+  }
 }
 
 export const budgetService = new BudgetService();

@@ -10,6 +10,14 @@ export async function getBudgetsHandler(
   return reply.send({ budgets });
 }
 
+export async function getBudgetSummaryHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const summary = await budgetService.getSummary(request.user.id);
+  return reply.send(summary);
+}
+
 export async function getBudgetHandler(
   request: FastifyRequest<{ Params: { id: string } }>,
   reply: FastifyReply

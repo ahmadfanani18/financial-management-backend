@@ -3,6 +3,7 @@ import { authenticate } from '../../middleware/auth.js';
 import {
   getBudgetsHandler,
   getBudgetHandler,
+  getBudgetSummaryHandler,
   createBudgetHandler,
   updateBudgetHandler,
   deleteBudgetHandler,
@@ -15,7 +16,13 @@ export async function budgetRoutes(fastify: FastifyInstance) {
     schema: {
       response: { 200: { type: 'object', properties: { budgets: { type: 'array' } } } },
     },
-  }, getBudgetsHandler);
+  }, getBudgetsHandler),
+
+  fastify.get('/summary', {
+    schema: {
+      response: { 200: { type: 'object' } },
+    },
+  }, getBudgetSummaryHandler);
 
   fastify.get('/:id', {
     schema: {
