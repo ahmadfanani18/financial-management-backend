@@ -13,54 +13,17 @@ import {
 export async function budgetRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authenticate);
 
-  fastify.get('/', {
-    schema: {
-      response: { 200: { type: 'object', properties: { budgets: { type: 'array' } } } },
-    },
-  }, getBudgetsHandler);
+  fastify.get('/', {}, getBudgetsHandler);
 
   fastify.get('/summary', {}, getBudgetSummaryHandler);
 
-  fastify.put('/:id/spent', {
-    schema: {
-      params: { type: 'object', properties: { id: { type: 'string' } } },
-      body: { type: 'object', properties: { spent: { type: 'number' } } },
-    },
-  }, updateBudgetSpentHandler);
+  fastify.put('/:id/spent', {}, updateBudgetSpentHandler);
 
-  fastify.get('/:id', {
-    schema: {
-      params: { type: 'object', properties: { id: { type: 'string' } } },
-    },
-  }, getBudgetHandler);
+  fastify.get('/:id', {}, getBudgetHandler);
 
-  fastify.post('/', {
-    schema: {
-      body: {
-        type: 'object',
-        required: ['categoryId', 'amount', 'startDate'],
-        properties: {
-          categoryId: { type: 'string', format: 'uuid' },
-          amount: { type: 'number' },
-          period: { type: 'string', enum: ['MONTHLY', 'WEEKLY', 'YEARLY', 'CUSTOM'], default: 'MONTHLY' },
-          startDate: { type: 'string' },
-          endDate: { type: 'string' },
-          warningThreshold: { type: 'number', default: 80 },
-          isActive: { type: 'boolean', default: true },
-        },
-      },
-    },
-  }, createBudgetHandler);
+  fastify.post('/', {}, createBudgetHandler);
 
-  fastify.put('/:id', {
-    schema: {
-      params: { type: 'object', properties: { id: { type: 'string' } } },
-    },
-  }, updateBudgetHandler);
+  fastify.put('/:id', {}, updateBudgetHandler);
 
-  fastify.delete('/:id', {
-    schema: {
-      params: { type: 'object', properties: { id: { type: 'string' } } },
-    },
-  }, deleteBudgetHandler);
+  fastify.delete('/:id', {}, deleteBudgetHandler);
 }
