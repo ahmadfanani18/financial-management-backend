@@ -24,9 +24,16 @@ export async function createTransactionHandler(
   request: FastifyRequest,
   reply: FastifyReply
 ) {
-  const input = createTransactionSchema.parse(request.body);
-  const transaction = await transactionService.create(request.user.id, input);
-  return reply.status(201).send({ transaction });
+  try {
+    const input = createTransactionSchema.parse(request.body);
+    const transaction = await transactionService.create(request.user.id, input);
+    return reply.status(201).send({ transaction });
+  } catch (error) {
+    if (error instanceof Error) {
+      return reply.status(400).send({ error: error.message });
+    }
+    return reply.status(500).send({ error: 'Terjadi kesalahan' });
+  }
 }
 
 export async function updateTransactionHandler(
