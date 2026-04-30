@@ -16,17 +16,13 @@ export async function budgetRoutes(fastify: FastifyInstance) {
     schema: {
       response: { 200: { type: 'object', properties: { budgets: { type: 'array' } } } },
     },
-  }, getBudgetsHandler),
+  }, getBudgetsHandler);
 
-  fastify.get('/summary', {
-    schema: {
-      response: { 200: { type: 'object' } },
-    },
-  }, getBudgetSummaryHandler);
+  fastify.get('/summary', {}, getBudgetSummaryHandler);
 
   fastify.get('/:id', {
     schema: {
-      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } } },
+      params: { type: 'object', properties: { id: { type: 'string' } } },
     },
   }, getBudgetHandler);
 
@@ -50,13 +46,13 @@ export async function budgetRoutes(fastify: FastifyInstance) {
 
   fastify.put('/:id', {
     schema: {
-      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } } },
+      params: { type: 'object', properties: { id: { type: 'string' } } },
     },
   }, updateBudgetHandler);
 
   fastify.delete('/:id', {
     schema: {
-      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } } },
+      params: { type: 'object', properties: { id: { type: 'string' } } },
     },
   }, deleteBudgetHandler);
 }
