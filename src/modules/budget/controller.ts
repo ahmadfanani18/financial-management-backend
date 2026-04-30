@@ -23,7 +23,7 @@ export async function getBudgetHandler(
   reply: FastifyReply
 ) {
   const { id } = budgetIdSchema.parse(request.params);
-  const budget = await budgetService.getSpending(id, request.user.id);
+  const budget = await budgetService.getSpending(request.user.id, id);
   return reply.send(budget);
 }
 
