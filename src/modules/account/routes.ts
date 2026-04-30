@@ -43,8 +43,9 @@ export async function accountRoutes(fastify: FastifyInstance) {
       params: {
         type: 'object',
         properties: {
-          id: { type: 'string', format: 'uuid' },
+          id: { type: 'string' },
         },
+        required: ['id'],
       },
     },
   }, getAccountHandler);
@@ -71,8 +72,9 @@ export async function accountRoutes(fastify: FastifyInstance) {
       params: {
         type: 'object',
         properties: {
-          id: { type: 'string', format: 'uuid' },
+          id: { type: 'string' },
         },
+        required: ['id'],
       },
     },
   }, updateAccountHandler);
@@ -82,8 +84,9 @@ export async function accountRoutes(fastify: FastifyInstance) {
       params: {
         type: 'object',
         properties: {
-          id: { type: 'string', format: 'uuid' },
+          id: { type: 'string' },
         },
+        required: ['id'],
       },
     },
   }, deleteAccountHandler);
