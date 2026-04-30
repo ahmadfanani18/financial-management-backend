@@ -1,6 +1,31 @@
 import { prisma } from '../../config/prisma.js';
 import type { CreateBudgetInput, UpdateBudgetInput } from './schemas.js';
 
+function calculateEndDate(startDate: Date, period: string): Date {
+  const start = new Date(startDate);
+  switch (period) {
+    case 'MONTHLY': {
+      return new Date(start.getFullYear(), start.getMonth() + 1, 0, 23, 59, 59);
+    }
+    case 'WEEKLY': {
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      end.setHours(23, 59, 59, 999);
+      return end;
+    }
+    case 'YEARLY': {
+      const end = new Date(start);
+      end.setFullYear(end.getFullYear() + 1);
+      end.setDate(end.getDate() - 1);
+      end.setHours(23, 59, 59, 999);
+      return end;
+    }
+    case 'CUSTOM':
+    default:
+      return start;
+  }
+}
+
 export class BudgetService {
   async getAll(userId: string) {
     return prisma.budget.findMany({
@@ -20,29 +45,66 @@ export class BudgetService {
   }
 
   async create(userId: string, input: CreateBudgetInput) {
-    const existing = await prisma.budget.findFirst({
+    const startDate = new Date(input.startDate);
+    const calculatedEndDate = calculateEndDate(startDate, input.period || 'MONTHLY');
+
+    const existingBudgets = await prisma.budget.findMany({
       where: {
         userId,
         categoryId: input.categoryId,
         isActive: true,
       },
     });
-    
-    if (existing) {
-      throw new Error('Anggaran untuk kategori ini sudah ada');
+
+    for (const budget of existingBudgets) {
+      if (!budget.endDate) {
+        const existingEndDate = calculateEndDate(new Date(budget.startDate), budget.period);
+        await prisma.budget.update({
+          where: { id: budget.id },
+          data: { endDate: existingEndDate },
+        });
+      }
+    }
+
+    const allBudgets = await prisma.budget.findMany({
+      where: {
+        userId,
+        categoryId: input.categoryId,
+        isActive: true,
+      },
+    });
+
+    for (const budget of allBudgets) {
+      const existingStart = new Date(budget.startDate);
+      const existingEnd = budget.endDate ? new Date(budget.endDate) : calculateEndDate(existingStart, budget.period);
+
+      if (startDate <= existingEnd && calculatedEndDate >= existingStart) {
+        const periodLabels: Record<string, string> = { MONTHLY: 'Bulanan', WEEKLY: 'Mingguan', YEARLY: 'Tahunan' };
+        const periodLabel = periodLabels[budget.period] || budget.period;
+        throw new Error(`Anggaran untuk kategori ini sudah ada pada periode ${periodLabel} (${existingStart.toLocaleDateString('id-ID')} - ${existingEnd.toLocaleDateString('id-ID')}). Tidak dapat membuat anggaran baru karena periode saling overlaps.`);
+      }
     }
 
     return prisma.budget.create({
-      data: { ...input, userId },
+      data: { ...input, startDate, endDate: calculatedEndDate, userId },
       include: { category: true },
     });
   }
 
   async update(id: string, userId: string, input: UpdateBudgetInput) {
-    await this.getById(id, userId);
+    const existing = await this.getById(id, userId);
+
+    let endDate = existing.endDate;
+    const newStartDate = input.startDate ? new Date(input.startDate) : new Date(existing.startDate);
+    const newPeriod = input.period || existing.period;
+
+    if (input.startDate || input.period) {
+      endDate = calculateEndDate(newStartDate, newPeriod);
+    }
+
     return prisma.budget.update({
       where: { id },
-      data: input,
+      data: { ...input, endDate },
       include: { category: true },
     });
   }
