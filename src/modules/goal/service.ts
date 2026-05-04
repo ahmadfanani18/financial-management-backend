@@ -3,11 +3,21 @@ import type { CreateGoalInput, UpdateGoalInput, ContributionInput, ContributionW
 
 export class GoalService {
   async getAll(userId: string) {
-    return prisma.goal.findMany({
+    const goals = await prisma.goal.findMany({
       where: { userId },
       include: { contributions: true },
       orderBy: { createdAt: 'desc' },
     });
+    
+    return goals.map(goal => ({
+      ...goal,
+      targetAmount: Number(goal.targetAmount),
+      currentAmount: Number(goal.currentAmount),
+      contributions: goal.contributions.map(c => ({
+        ...c,
+        amount: Number(c.amount),
+      })),
+    }));
   }
 
   async getById(id: string, userId: string) {
@@ -16,7 +26,16 @@ export class GoalService {
       include: { contributions: { orderBy: { date: 'desc' } } },
     });
     if (!goal) throw new Error('Target tabungan tidak ditemukan');
-    return goal;
+    
+    return {
+      ...goal,
+      targetAmount: Number(goal.targetAmount),
+      currentAmount: Number(goal.currentAmount),
+      contributions: goal.contributions.map(c => ({
+        ...c,
+        amount: Number(c.amount),
+      })),
+    };
   }
 
   async create(userId: string, input: CreateGoalInput) {
