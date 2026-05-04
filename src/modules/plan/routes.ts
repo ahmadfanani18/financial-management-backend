@@ -11,6 +11,8 @@ import {
   deleteMilestoneHandler,
   completeMilestoneHandler,
   reorderMilestonesHandler,
+  linkBudgetHandler,
+  linkGoalHandler,
 } from './controller.js';
 
 export async function planRoutes(fastify: FastifyInstance) {
@@ -128,4 +130,58 @@ export async function planRoutes(fastify: FastifyInstance) {
       },
     },
   }, completeMilestoneHandler);
+
+  fastify.post('/:id/link-budget', {
+    schema: {
+      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } } },
+      body: {
+        type: 'object',
+        required: ['budgetId'],
+        properties: { budgetId: { type: 'string', format: 'uuid' } },
+      },
+    },
+  }, linkBudgetHandler);
+
+  fastify.delete('/:id/link-budget/:budgetId', {
+    schema: {
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          budgetId: { type: 'string', format: 'uuid' },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    const { id, budgetId } = request.params as { id: string; budgetId: string };
+    await planService.unlinkBudget(id, request.user.id, budgetId);
+    return { success: true };
+  });
+
+  fastify.post('/:id/link-goal', {
+    schema: {
+      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } } },
+      body: {
+        type: 'object',
+        required: ['goalId'],
+        properties: { goalId: { type: 'string', format: 'uuid' } },
+      },
+    },
+  }, linkGoalHandler);
+
+  fastify.delete('/:id/link-goal/:goalId', {
+    schema: {
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          goalId: { type: 'string', format: 'uuid' },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    const { id, goalId } = request.params as { id: string; goalId: string };
+    await planService.unlinkGoal(id, request.user.id, goalId);
+    return { success: true };
+  });
 }
