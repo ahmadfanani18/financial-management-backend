@@ -92,11 +92,36 @@ export class PlanService {
       where: { id: milestoneId, plan: { userId } },
     });
     if (!milestone) throw new Error('Milestone tidak ditemukan');
-    
-    return prisma.planMilestone.update({
+
+    const updatedMilestone = await prisma.planMilestone.update({
       where: { id: milestoneId },
       data: input,
     });
+
+    if (input.goalId && updatedMilestone.targetAmount) {
+      const plan = await prisma.plan.findFirst({
+        where: { id: milestone.planId },
+        include: {
+          milestones: {
+            where: { goalId: input.goalId },
+          },
+        },
+      });
+
+      if (plan) {
+        const totalTarget = plan.milestones.reduce(
+          (sum, m) => sum + Number(m.targetAmount || 0),
+          0
+        );
+
+        await prisma.goal.update({
+          where: { id: input.goalId },
+          data: { targetAmount: totalTarget },
+        });
+      }
+    }
+
+    return updatedMilestone;
   }
 
   async deleteMilestone(milestoneId: string, userId: string) {
