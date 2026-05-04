@@ -65,7 +65,7 @@ export async function updateMilestoneHandler(
   request: FastifyRequest<{ Params: { planId: string; milestoneId: string } }>,
   reply: FastifyReply
 ) {
-  const { milestoneId } = milestoneIdSchema.parse(request.params);
+  const { milestoneId } = request.params as { planId: string; milestoneId: string };
   const input = updateMilestoneSchema.parse(request.body);
   const milestone = await planService.updateMilestone(milestoneId, request.user.id, input);
   return reply.send({ milestone });
@@ -75,7 +75,7 @@ export async function deleteMilestoneHandler(
   request: FastifyRequest<{ Params: { planId: string; milestoneId: string } }>,
   reply: FastifyReply
 ) {
-  const { milestoneId } = milestoneIdSchema.parse(request.params);
+  const { milestoneId } = request.params as { planId: string; milestoneId: string };
   await planService.deleteMilestone(milestoneId, request.user.id);
   return reply.status(204).send();
 }
