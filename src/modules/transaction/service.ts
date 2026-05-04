@@ -167,6 +167,41 @@ export class TransactionService {
         where: { id: input.accountId },
         data: { balance: { increment: adjustment } },
       });
+
+      if (input.type === 'EXPENSE' && input.categoryId) {
+        const categoryWithGoal = await prisma.category.findFirst({
+          where: { 
+            id: input.categoryId,
+            name: { startsWith: 'Tabungan -' },
+          },
+          include: {
+            goals: {
+              where: { isLocked: false },
+              take: 1,
+            },
+          },
+        });
+
+        if (categoryWithGoal && categoryWithGoal.goals.length > 0) {
+          const goal = categoryWithGoal.goals[0];
+          await prisma.goalContribution.create({
+            data: {
+              goalId: goal.id,
+              amount: input.amount,
+              date: new Date(input.date),
+              note: `Dari transaksi: ${input.note || 'Kategori ' + categoryWithGoal.name}`,
+              accountId: input.accountId,
+            },
+          });
+
+          await prisma.goal.update({
+            where: { id: goal.id },
+            data: {
+              currentAmount: { increment: input.amount },
+            },
+          });
+        }
+      }
     }
 
     if (input.type === 'TRANSFER' && input.fromAccountId && input.toAccountId) {
