@@ -84,7 +84,7 @@ export async function completeMilestoneHandler(
   request: FastifyRequest<{ Params: { planId: string; milestoneId: string } }>,
   reply: FastifyReply
 ) {
-  const { milestoneId } = milestoneIdSchema.parse(request.params);
+  const { milestoneId } = request.params as { planId: string; milestoneId: string };
   
   const milestone = await planService.completeMilestone(milestoneId, request.user.id);
   
