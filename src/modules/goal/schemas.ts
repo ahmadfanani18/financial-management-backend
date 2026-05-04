@@ -14,6 +14,10 @@ export const goalIdSchema = z.object({
   id: z.string().uuid('Invalid UUID format'),
 });
 
+export const milestoneIdSchema = z.object({
+  milestoneId: z.string().uuid('Invalid UUID format'),
+});
+
 export const contributionSchema = z.object({
   amount: z.number().positive('Jumlah kontribusi harus positif'),
   date: z.coerce.date(),
@@ -25,9 +29,19 @@ export const contributionWithAccountSchema = z.object({
   date: z.coerce.date(),
   note: z.string().optional(),
   accountId: z.string().uuid('Invalid account ID').optional(),
+  categoryId: z.string().uuid('Invalid category ID').optional(),
+});
+
+export const createGoalFromMilestoneSchema = z.object({
+  name: z.string().min(1).optional(),
+  targetAmount: z.number().positive().optional(),
+  deadline: z.string().optional(),
+  icon: z.string().optional(),
+  color: z.string().optional(),
 });
 
 export type CreateGoalInput = z.infer<typeof createGoalSchema>;
 export type UpdateGoalInput = z.infer<typeof updateGoalSchema>;
 export type ContributionInput = z.infer<typeof contributionSchema>;
 export type ContributionWithAccountInput = z.infer<typeof contributionWithAccountSchema>;
+export type CreateGoalFromMilestoneInput = z.infer<typeof createGoalFromMilestoneSchema>;

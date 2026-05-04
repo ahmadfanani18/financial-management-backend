@@ -85,7 +85,14 @@ export async function completeMilestoneHandler(
   reply: FastifyReply
 ) {
   const { milestoneId } = milestoneIdSchema.parse(request.params);
+  
   const milestone = await planService.completeMilestone(milestoneId, request.user.id);
+  
+  if (milestone.goalId) {
+    const { goalService } = await import('../goal/service.js');
+    await goalService.syncFromMilestoneComplete(milestoneId, request.user.id);
+  }
+  
   return reply.send({ milestone });
 }
 

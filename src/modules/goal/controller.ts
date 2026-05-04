@@ -1,6 +1,6 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { goalService } from './service.js';
-import { createGoalSchema, updateGoalSchema, goalIdSchema, contributionSchema, contributionWithAccountSchema } from './schemas.js';
+import { createGoalSchema, updateGoalSchema, goalIdSchema, milestoneIdSchema, contributionSchema, contributionWithAccountSchema, createGoalFromMilestoneSchema } from './schemas.js';
 
 export async function getGoalsHandler(
   request: FastifyRequest,
@@ -93,4 +93,29 @@ export async function addContributionWithAccountHandler(
   const input = contributionWithAccountSchema.parse(request.body);
   const result = await goalService.addContribution(id, request.user.id, input, input.accountId);
   return reply.status(201).send(result);
+}
+
+export async function createGoalFromMilestoneHandler(
+  request: FastifyRequest<{ Params: { milestoneId: string } }>,
+  reply: FastifyReply
+) {
+  const { milestoneId } = milestoneIdSchema.parse(request.params);
+  const input = createGoalFromMilestoneSchema.parse(request.body || {});
+  const goal = await goalService.createFromMilestone(milestoneId, request.user.id, input);
+  return reply.status(201).send({ goal });
+}
+
+export async function deleteGoalWithRefundHandler(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply
+) {
+  const { id } = goalIdSchema.parse(request.params);
+  
+  try {
+    await goalService.deleteWithRefund(id, request.user.id);
+    return reply.status(204).send();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return reply.status(400).send({ error: true, message });
+  }
 }

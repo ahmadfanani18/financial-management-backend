@@ -1,5 +1,5 @@
 import { prisma } from '../../config/prisma.js';
-import type { CreateGoalInput, UpdateGoalInput, ContributionInput } from './schemas.js';
+import type { CreateGoalInput, UpdateGoalInput, ContributionInput, ContributionWithAccountInput, CreateGoalFromMilestoneInput } from './schemas.js';
 
 export class GoalService {
   async getAll(userId: string) {
@@ -221,6 +221,143 @@ export class GoalService {
         isOverdue: daysRemaining < 0 && goal.status === 'ACTIVE',
       };
     });
+  }
+
+  async createFromMilestone(milestoneId: string, userId: string, input?: CreateGoalFromMilestoneInput) {
+    const milestone = await prisma.planMilestone.findFirst({
+      where: { id: milestoneId, plan: { userId } },
+      include: { plan: true },
+    });
+    
+    if (!milestone || !milestone.targetAmount) {
+      throw new Error('Milestone tidak ditemukan atau tidak memiliki target amount');
+    }
+
+    const goal = await prisma.goal.create({
+      data: {
+        userId,
+        name: input?.name || milestone.title,
+        targetAmount: input?.targetAmount || milestone.targetAmount,
+        deadline: input?.deadline ? new Date(input.deadline) : milestone.targetDate,
+        currentAmount: 0,
+        source: 'AUTO_GENERATED',
+        sourceMilestoneId: milestoneId,
+        icon: input?.icon || 'target',
+        color: input?.color || '#10B981',
+      },
+    });
+
+    await prisma.planMilestone.update({
+      where: { id: milestoneId },
+      data: { goalId: goal.id },
+    });
+
+    return goal;
+  }
+
+  async createContribution(goalId: string, userId: string, input: ContributionWithAccountInput) {
+    const goal = await this.getById(goalId, userId);
+    
+    const contribution = await prisma.$transaction(async (tx) => {
+      const newContribution = await tx.goalContribution.create({
+        data: {
+          goalId,
+          amount: input.amount,
+          date: input.date,
+          note: input.note,
+          accountId: input.accountId || null,
+          categoryId: input.categoryId || null,
+        },
+      });
+
+      await tx.goal.update({
+        where: { id: goalId },
+        data: {
+          currentAmount: { increment: input.amount },
+        },
+      });
+
+      if (input.accountId) {
+        await tx.account.update({
+          where: { id: input.accountId },
+          data: {
+            balance: { decrement: input.amount },
+          },
+        });
+      }
+
+      return newContribution;
+    });
+
+    return contribution;
+  }
+
+  async deleteWithRefund(goalId: string, userId: string) {
+    const goal = await this.getById(goalId, userId);
+    
+    if (goal.source !== 'AUTO_GENERATED') {
+      throw new Error('Hanya goal yang dibuat dari milestone yang dapat dihapus dengan refund');
+    }
+
+    const contributions = await prisma.goalContribution.findMany({
+      where: { goalId, accountId: { not: null } },
+    });
+
+    await prisma.$transaction(async (tx) => {
+      for (const contribution of contributions) {
+        if (contribution.accountId) {
+          await tx.transaction.create({
+            data: {
+              userId,
+              accountId: contribution.accountId,
+              type: 'INCOME',
+              amount: contribution.amount,
+              description: `Refund dari goal: ${goal.name}`,
+              date: new Date(),
+            },
+          });
+
+          await tx.account.update({
+            where: { id: contribution.accountId },
+            data: {
+              balance: { increment: contribution.amount },
+            },
+          });
+        }
+      }
+
+      await tx.goalContribution.deleteMany({ where: { goalId } });
+    });
+
+    if (goal.sourceMilestoneId) {
+      await prisma.planMilestone.update({
+        where: { id: goal.sourceMilestoneId },
+        data: { goalId: null },
+      });
+    }
+
+    await prisma.goal.delete({ where: { id: goalId } });
+  }
+
+  async syncFromMilestoneComplete(milestoneId: string, userId: string) {
+    const milestone = await prisma.planMilestone.findFirst({
+      where: { id: milestoneId, plan: { userId }, goalId: { not: null } },
+      include: { plan: true },
+    });
+
+    if (!milestone?.goalId) return null;
+
+    if (milestone.targetAmount) {
+      await this.createContribution(milestone.goalId, userId, {
+        amount: Number(milestone.targetAmount),
+        date: new Date(),
+        note: `Completed milestone: ${milestone.title}`,
+        accountId: undefined,
+        categoryId: undefined,
+      });
+    }
+
+    return await this.getProgress(milestone.goalId, userId);
   }
 }
 

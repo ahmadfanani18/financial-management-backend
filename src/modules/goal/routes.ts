@@ -11,6 +11,8 @@ import {
   deleteGoalWithTransactionHandler,
   getContributionsHandler,
   addContributionWithAccountHandler,
+  createGoalFromMilestoneHandler,
+  deleteGoalWithRefundHandler,
 } from './controller.js';
 
 export async function goalRoutes(fastify: FastifyInstance) {
@@ -110,4 +112,16 @@ export async function goalRoutes(fastify: FastifyInstance) {
       },
     },
   }, addContributionWithAccountHandler);
+
+  fastify.post('/from-milestone/:milestoneId', {
+    schema: {
+      params: { type: 'object', properties: { milestoneId: { type: 'string', format: 'uuid' } } },
+    },
+  }, createGoalFromMilestoneHandler);
+
+  fastify.delete('/:id/with-refund', {
+    schema: {
+      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } } },
+    },
+  }, deleteGoalWithRefundHandler);
 }

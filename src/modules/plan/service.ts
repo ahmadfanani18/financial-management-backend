@@ -6,7 +6,7 @@ export class PlanService {
     return prisma.plan.findMany({
       where: { userId },
       include: { 
-        milestones: { orderBy: { order: 'asc' } },
+        milestones: { orderBy: { order: 'asc' }, include: { goal: true } },
         planBudgets: { include: { budget: { include: { category: true } } } },
         planGoals: { include: { goal: true } },
       },
@@ -18,7 +18,7 @@ export class PlanService {
     const plan = await prisma.plan.findFirst({
       where: { id, userId },
       include: { 
-        milestones: { orderBy: { order: 'asc' } },
+        milestones: { orderBy: { order: 'asc' }, include: { goal: true } },
         planBudgets: { include: { budget: { include: { category: true } } } },
         planGoals: { include: { goal: true } },
       },
@@ -82,6 +82,27 @@ export class PlanService {
     if (!milestone) throw new Error('Milestone tidak ditemukan');
     
     await prisma.planMilestone.delete({ where: { id: milestoneId } });
+  }
+
+  async deleteMilestoneWithRefund(milestoneId: string, userId: string) {
+    const milestone = await prisma.planMilestone.findFirst({
+      where: { id: milestoneId, plan: { userId } },
+      include: { 
+        plan: true,
+        goal: true,
+      },
+    });
+
+    if (!milestone) {
+      throw new Error('Milestone tidak ditemukan');
+    }
+
+    if (milestone.goalId && milestone.goal?.source === 'AUTO_GENERATED') {
+      const { goalService } = await import('../goal/service.js');
+      await goalService.deleteWithRefund(milestone.goalId, userId);
+    } else {
+      await prisma.planMilestone.delete({ where: { id: milestoneId } });
+    }
   }
 
   async completeMilestone(milestoneId: string, userId: string) {
