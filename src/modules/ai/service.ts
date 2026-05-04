@@ -312,11 +312,12 @@ export class AIService {
       plan: {
         name: planName,
         description: `Rencana keuangan berdasarkan analisis data ${actualMonths} bulan terakhir. Pendapatan rata-rata: ${Math.round(monthlyIncome).toLocaleString('id-ID')}/bulan, Pengeluaran: ${Math.round(monthlyExpense).toLocaleString('id-ID')}/bulan.`,
-        startDate,
-        endDate,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
         status: 'ACTIVE' as const,
         milestones: milestones.map((m, idx) => ({
           ...m,
+          targetDate: m.targetDate.toISOString(),
           id: `temp-${idx}`,
           isCompleted: false,
           order: idx,

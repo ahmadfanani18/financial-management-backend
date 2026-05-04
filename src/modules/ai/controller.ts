@@ -40,9 +40,9 @@ export async function generatePlanFromDataHandler(
       message: result.message 
     });
   }
-  
-  return reply.send({
+
+  return {
     plan: result.plan,
     summary: result.summary,
-  });
+  };
 }
