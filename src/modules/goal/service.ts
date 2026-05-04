@@ -292,6 +292,8 @@ export class GoalService {
 
   async createContribution(goalId: string, userId: string, input: ContributionWithAccountInput) {
     const goal = await this.getById(goalId, userId);
+    const accountId = input.accountId && input.accountId.trim() ? input.accountId.trim() : null;
+    const categoryId = input.categoryId && input.categoryId.trim() ? input.categoryId.trim() : null;
     
     const contribution = await prisma.$transaction(async (tx) => {
       const newContribution = await tx.goalContribution.create({
@@ -300,8 +302,8 @@ export class GoalService {
           amount: input.amount,
           date: input.date,
           note: input.note,
-          accountId: input.accountId || null,
-          categoryId: input.categoryId || null,
+          accountId: accountId,
+          categoryId: categoryId,
         },
       });
 
@@ -312,9 +314,9 @@ export class GoalService {
         },
       });
 
-      if (input.accountId) {
+      if (accountId) {
         await tx.account.update({
-          where: { id: input.accountId },
+          where: { id: accountId },
           data: {
             balance: { decrement: input.amount },
           },
