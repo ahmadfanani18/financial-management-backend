@@ -21,7 +21,9 @@ export const createMilestoneSchema = z.object({
   targetAmount: z.number().optional(),
 });
 
-export const updateMilestoneSchema = createMilestoneSchema.partial();
+export const updateMilestoneSchema = createMilestoneSchema.partial().extend({
+  goalId: z.string().uuid('Invalid UUID format').optional(),
+});
 
 export const milestoneIdSchema = z.object({
   id: z.string().uuid('Invalid UUID format'),
