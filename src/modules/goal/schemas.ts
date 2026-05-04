@@ -6,6 +6,8 @@ export const createGoalSchema = z.object({
   deadline: z.coerce.date(),
   icon: z.string().default('target'),
   color: z.string().default('#10B981'),
+  createBudget: z.boolean().optional(),
+  monthlyAmount: z.number().optional(),
 });
 
 export const updateGoalSchema = createGoalSchema.partial();
