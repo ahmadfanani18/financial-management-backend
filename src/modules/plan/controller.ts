@@ -123,3 +123,12 @@ export async function linkGoalHandler(
   const planGoal = await planService.linkGoal(id, request.user.id, goalId);
   return reply.status(201).send({ planGoal });
 }
+
+export async function createBudgetsFromMilestonesHandler(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply
+) {
+  const { id } = request.params as { id: string };
+  const result = await planService.createBudgetsFromMilestones(id, request.user.id);
+  return reply.status(201).send(result);
+}

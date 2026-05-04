@@ -13,6 +13,7 @@ import {
   reorderMilestonesHandler,
   linkBudgetHandler,
   linkGoalHandler,
+  createBudgetsFromMilestonesHandler,
 } from './controller.js';
 
 export async function planRoutes(fastify: FastifyInstance) {
@@ -184,4 +185,10 @@ export async function planRoutes(fastify: FastifyInstance) {
     await planService.unlinkGoal(id, request.user.id, goalId);
     return { success: true };
   });
+
+  fastify.post('/:id/create-budgets-from-milestones', {
+    schema: {
+      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } } },
+    },
+  }, createBudgetsFromMilestonesHandler);
 }

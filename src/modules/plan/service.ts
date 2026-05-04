@@ -197,6 +197,82 @@ export class PlanService {
       where: { planId, goalId },
     });
   }
+
+  async createBudgetsFromMilestones(planId: string, userId: string) {
+    const plan = await this.getById(planId, userId);
+
+    const milestonesWithGoals = plan.milestones.filter(
+      m => m.goalId && m.targetAmount && m.targetDate
+    );
+
+    if (milestonesWithGoals.length === 0) {
+      throw new Error('Tidak ada milestone dengan goal dan target amount');
+    }
+
+    const firstMilestone = milestonesWithGoals[0];
+    const goal = await prisma.goal.findUnique({
+      where: { id: firstMilestone.goalId! },
+    });
+
+    if (!goal) throw new Error('Goal tidak ditemukan');
+
+    const categoryName = `Tabungan - ${goal.name}`;
+    let category = await prisma.category.findFirst({
+      where: { userId, name: categoryName },
+    });
+
+    if (!category) {
+      category = await prisma.category.create({
+        data: {
+          name: categoryName,
+          type: 'EXPENSE',
+          userId,
+          color: goal.color || '#10B981',
+          icon: goal.icon || 'target',
+        },
+      });
+    }
+
+    const createdBudgets = [];
+
+    for (const milestone of milestonesWithGoals) {
+      const targetDate = new Date(milestone.targetDate!);
+      const startDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+      const endDate = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0);
+      endDate.setHours(23, 59, 59, 999);
+
+      const existingBudget = await prisma.budget.findFirst({
+        where: {
+          userId,
+          categoryId: category.id,
+          startDate: { gte: startDate },
+          endDate: { lte: endDate },
+          isActive: true,
+        },
+      });
+
+      if (!existingBudget) {
+        const budget = await prisma.budget.create({
+          data: {
+            userId,
+            categoryId: category.id,
+            amount: Number(milestone.targetAmount),
+            period: 'MONTHLY',
+            startDate,
+            endDate,
+            isActive: true,
+            warningThreshold: 80,
+          },
+        });
+        createdBudgets.push(budget);
+      }
+    }
+
+    return {
+      message: `${createdBudgets.length} budget berhasil dibuat`,
+      budgets: createdBudgets,
+    };
+  }
 }
 
 export const planService = new PlanService();
