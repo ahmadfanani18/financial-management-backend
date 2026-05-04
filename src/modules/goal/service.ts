@@ -55,9 +55,51 @@ export class GoalService {
   }
 
   async create(userId: string, input: CreateGoalInput) {
-    return prisma.goal.create({
-      data: { ...input, userId },
+    const { createBudget, monthlyAmount, ...goalData } = input;
+
+    const goal = await prisma.goal.create({
+      data: { ...goalData, userId },
     });
+
+    if (createBudget && monthlyAmount && monthlyAmount > 0) {
+      const categoryName = `Tabungan - ${goal.name}`;
+      let category = await prisma.category.findFirst({
+        where: { userId, name: categoryName },
+      });
+
+      if (!category) {
+        category = await prisma.category.create({
+          data: {
+            name: categoryName,
+            type: 'EXPENSE',
+            userId,
+            color: goal.color || '#10B981',
+            icon: goal.icon || 'target',
+          },
+        });
+      }
+
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setMonth(endDate.getMonth() + 1);
+      endDate.setDate(endDate.getDate() - 1);
+      endDate.setHours(23, 59, 59, 999);
+
+      await prisma.budget.create({
+        data: {
+          userId,
+          categoryId: category.id,
+          amount: monthlyAmount,
+          period: 'MONTHLY',
+          startDate,
+          endDate,
+          isActive: true,
+          warningThreshold: 80,
+        },
+      });
+    }
+
+    return goal;
   }
 
   async update(id: string, userId: string, input: UpdateGoalInput) {
