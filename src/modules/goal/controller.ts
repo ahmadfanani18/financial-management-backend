@@ -10,6 +10,14 @@ export async function getGoalsHandler(
   return reply.send({ goals });
 }
 
+export async function getGoalsOverviewHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const overview = await goalService.getOverview(request.user.id);
+  return reply.send(overview);
+}
+
 export async function getGoalHandler(
   request: FastifyRequest<{ Params: { id: string } }>,
   reply: FastifyReply

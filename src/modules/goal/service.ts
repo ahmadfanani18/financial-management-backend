@@ -20,6 +20,22 @@ export class GoalService {
     }));
   }
 
+  async getOverview(userId: string) {
+    const goals = await prisma.goal.findMany({
+      where: { userId },
+      select: { targetAmount: true, currentAmount: true },
+    });
+    
+    const totalTarget = goals.reduce((sum, g) => sum + Number(g.targetAmount), 0);
+    const totalSaved = goals.reduce((sum, g) => sum + Number(g.currentAmount), 0);
+    
+    return {
+      totalTarget,
+      totalSaved,
+      progress: totalTarget > 0 ? Math.round((totalSaved / totalTarget) * 100) : 0,
+    };
+  }
+
   async getById(id: string, userId: string) {
     const goal = await prisma.goal.findFirst({
       where: { id, userId },

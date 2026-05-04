@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../../middleware/auth.js';
 import {
   getGoalsHandler,
+  getGoalsOverviewHandler,
   getGoalHandler,
   createGoalHandler,
   updateGoalHandler,
@@ -23,6 +24,12 @@ export async function goalRoutes(fastify: FastifyInstance) {
       response: { 200: { type: 'object', properties: { goals: { type: 'array' } } } },
     },
   }, getGoalsHandler);
+
+  fastify.get('/overview', {
+    schema: {
+      response: { 200: { type: 'object', properties: { totalTarget: { type: 'number' }, totalSaved: { type: 'number' }, progress: { type: 'number' } } } },
+    },
+  }, getGoalsOverviewHandler);
 
   fastify.get('/:id', {
     schema: {
