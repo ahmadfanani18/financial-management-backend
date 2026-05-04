@@ -409,10 +409,15 @@ export class GoalService {
     });
 
     if (goal.sourceMilestoneId) {
-      await prisma.planMilestone.update({
+      const milestoneExists = await prisma.planMilestone.findUnique({
         where: { id: goal.sourceMilestoneId },
-        data: { goalId: null },
       });
+      if (milestoneExists) {
+        await prisma.planMilestone.update({
+          where: { id: goal.sourceMilestoneId },
+          data: { goalId: null },
+        });
+      }
     }
 
     await prisma.goal.delete({ where: { id: goalId } });

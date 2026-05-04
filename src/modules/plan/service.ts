@@ -45,6 +45,30 @@ export class PlanService {
 
   async delete(id: string, userId: string) {
     await this.getById(id, userId);
+
+    const milestones = await prisma.planMilestone.findMany({
+      where: { planId: id },
+      select: { goalId: true },
+    });
+
+    const goalIds = milestones
+      .filter(m => m.goalId)
+      .map(m => m.goalId!);
+
+    await prisma.goalContribution.deleteMany({
+      where: { goalId: { in: goalIds } },
+    });
+
+    if (goalIds.length > 0) {
+      await prisma.goal.deleteMany({
+        where: { id: { in: goalIds } },
+      });
+    }
+
+    await prisma.planMilestone.deleteMany({
+      where: { planId: id },
+    });
+
     await prisma.plan.delete({ where: { id } });
   }
 
