@@ -169,37 +169,42 @@ export class TransactionService {
       });
 
       if (input.type === 'EXPENSE' && input.categoryId) {
-        const categoryWithGoal = await prisma.category.findFirst({
+        const category = await prisma.category.findFirst({
           where: { 
             id: input.categoryId,
             name: { startsWith: 'Tabungan -' },
           },
-          include: {
-            goals: {
-              where: { isLocked: false },
-              take: 1,
-            },
-          },
         });
 
-        if (categoryWithGoal && categoryWithGoal.goals.length > 0) {
-          const goal = categoryWithGoal.goals[0];
-          await prisma.goalContribution.create({
-            data: {
-              goalId: goal.id,
-              amount: input.amount,
-              date: new Date(input.date),
-              note: `Dari transaksi: ${input.note || 'Kategori ' + categoryWithGoal.name}`,
-              accountId: input.accountId,
+        if (category) {
+          const goalName = category.name.replace('Tabungan - ', '').trim();
+          
+          const goal = await prisma.goal.findFirst({
+            where: {
+              userId,
+              name: goalName,
+              isLocked: false,
             },
           });
 
-          await prisma.goal.update({
-            where: { id: goal.id },
-            data: {
-              currentAmount: { increment: input.amount },
-            },
-          });
+          if (goal) {
+            await prisma.goalContribution.create({
+              data: {
+                goalId: goal.id,
+                amount: input.amount,
+                date: new Date(input.date),
+                note: input.note || `Dari transaksi: ${category.name}`,
+                accountId: input.accountId,
+              },
+            });
+
+            await prisma.goal.update({
+              where: { id: goal.id },
+              data: {
+                currentAmount: { increment: input.amount },
+              },
+            });
+          }
         }
       }
     }
