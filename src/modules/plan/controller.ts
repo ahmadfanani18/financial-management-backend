@@ -88,11 +88,6 @@ export async function completeMilestoneHandler(
   
   const milestone = await planService.completeMilestone(milestoneId, request.user.id);
   
-  if (milestone.goalId) {
-    const { goalService } = await import('../goal/service.js');
-    await goalService.syncFromMilestoneComplete(milestoneId, request.user.id);
-  }
-  
   return reply.send({ milestone });
 }
 

@@ -18,11 +18,14 @@ export class CategoryService {
   }
 
   async create(userId: string, input: CreateCategoryInput) {
+    const icon = input.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+    
     return prisma.category.create({
       data: {
         ...input,
         userId,
         isDefault: false,
+        icon: input.icon || icon,
       },
     });
   }
