@@ -187,9 +187,13 @@ export class TransactionService {
     const existing = await this.getById(id, userId);
     const { tagIds, ...data } = input;
 
+    const sanitizedData: any = { ...data };
+    if (sanitizedData.fromAccountId === '') sanitizedData.fromAccountId = null;
+    if (sanitizedData.toAccountId === '') sanitizedData.toAccountId = null;
+
     await prisma.transaction.update({
       where: { id },
-      data,
+      data: sanitizedData,
     });
 
     if (tagIds) {

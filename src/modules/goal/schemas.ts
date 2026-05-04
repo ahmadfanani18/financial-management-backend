@@ -20,6 +20,14 @@ export const contributionSchema = z.object({
   note: z.string().optional(),
 });
 
+export const contributionWithAccountSchema = z.object({
+  amount: z.number().positive('Jumlah kontribusi harus positif'),
+  date: z.coerce.date(),
+  note: z.string().optional(),
+  accountId: z.string().uuid('Invalid account ID').optional(),
+});
+
 export type CreateGoalInput = z.infer<typeof createGoalSchema>;
 export type UpdateGoalInput = z.infer<typeof updateGoalSchema>;
 export type ContributionInput = z.infer<typeof contributionSchema>;
+export type ContributionWithAccountInput = z.infer<typeof contributionWithAccountSchema>;

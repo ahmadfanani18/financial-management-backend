@@ -26,7 +26,14 @@ export class GoalService {
   }
 
   async update(id: string, userId: string, input: UpdateGoalInput) {
-    await this.getById(id, userId);
+    const goal = await this.getById(id, userId);
+    
+    if (goal.isLocked) {
+      if (input.targetAmount !== undefined || input.deadline !== undefined || input.icon !== undefined || input.color !== undefined) {
+        throw new Error('Goal terkunci - hanya nama yang bisa diubah');
+      }
+    }
+    
     return prisma.goal.update({
       where: { id },
       data: input,
@@ -38,33 +45,141 @@ export class GoalService {
     await prisma.goal.delete({ where: { id } });
   }
 
-  async addContribution(id: string, userId: string, input: ContributionInput) {
+  async toggleLock(id: string, userId: string) {
+    const goal = await this.getById(id, userId);
+    return prisma.goal.update({
+      where: { id },
+      data: { isLocked: !goal.isLocked },
+    });
+  }
+
+  async deleteWithTransaction(id: string, userId: string, accountId?: string) {
     const goal = await this.getById(id, userId);
     
-    const contribution = await prisma.goalContribution.create({
-      data: {
-        goalId: id,
-        amount: input.amount,
-        date: input.date,
-        note: input.note,
-      },
-    });
-
-    await prisma.goal.update({
-      where: { id },
-      data: { currentAmount: { increment: input.amount } },
-    });
-
-    const updatedGoal = await this.getById(id, userId);
-    
-    if (updatedGoal.currentAmount >= updatedGoal.targetAmount && goal.status === 'ACTIVE') {
-      await prisma.goal.update({
-        where: { id },
-        data: { status: 'COMPLETED' },
+    return prisma.$transaction(async (tx) => {
+      const contributions = await tx.goalContribution.findMany({
+        where: { goalId: id },
       });
-    }
+      
+      const totalContributions = contributions.reduce(
+        (sum, c) => sum + Number(c.amount),
+        0
+      );
 
-    return { contribution, goal: updatedGoal };
+      if (totalContributions > 0 && accountId) {
+        let category = await tx.category.findFirst({
+          where: { userId, name: 'Goals', type: 'INCOME' },
+        });
+
+        if (!category) {
+          category = await tx.category.create({
+            data: {
+              userId,
+              name: 'Goals',
+              type: 'INCOME',
+              icon: 'target',
+              color: '#10B981',
+              isDefault: true,
+            },
+          });
+        }
+
+        await tx.transaction.create({
+          data: {
+            userId,
+            accountId,
+            categoryId: category.id,
+            type: 'INCOME',
+            amount: totalContributions,
+            description: `Pengembalian dana dari goal: ${goal.name}`,
+            date: new Date(),
+          },
+        });
+
+        await tx.account.update({
+          where: { id: accountId },
+          data: { balance: { increment: totalContributions } },
+        });
+      }
+
+      await tx.goalContribution.deleteMany({ where: { goalId: id } });
+      await tx.goal.delete({ where: { id } });
+    });
+  }
+
+  async getContributions(id: string, userId: string) {
+    await this.getById(id, userId);
+    return prisma.goalContribution.findMany({
+      where: { goalId: id },
+      orderBy: { date: 'desc' },
+    });
+  }
+
+  async addContribution(id: string, userId: string, input: ContributionInput, accountId?: string) {
+    const goal = await this.getById(id, userId);
+    
+    return prisma.$transaction(async (tx) => {
+      const contribution = await tx.goalContribution.create({
+        data: {
+          goalId: id,
+          amount: input.amount,
+          date: input.date,
+          note: input.note,
+        },
+      });
+
+      await tx.goal.update({
+        where: { id },
+        data: { currentAmount: { increment: input.amount } },
+      });
+
+      if (accountId) {
+        let category = await tx.category.findFirst({
+          where: { userId, name: 'Goals', type: 'EXPENSE' },
+        });
+
+        if (!category) {
+          category = await tx.category.create({
+            data: {
+              userId,
+              name: 'Goals',
+              type: 'EXPENSE',
+              icon: 'target',
+              color: '#10B981',
+              isDefault: true,
+            },
+          });
+        }
+
+        await tx.transaction.create({
+          data: {
+            userId,
+            accountId,
+            categoryId: category.id,
+            type: 'EXPENSE',
+            amount: input.amount,
+            description: `Kontribusi ke goal: ${goal.name}`,
+            date: input.date,
+          },
+        });
+
+        await tx.account.update({
+          where: { id: accountId },
+          data: { balance: { decrement: input.amount } },
+        });
+      }
+
+      const updatedGoal = await tx.goal.findUnique({ where: { id } });
+      
+      if (updatedGoal && updatedGoal.currentAmount >= updatedGoal.targetAmount && goal.status === 'ACTIVE') {
+        await tx.goal.update({
+          where: { id },
+          data: { status: 'COMPLETED' },
+        });
+      }
+
+      return { contribution, goal: updatedGoal };
+    });
   }
 
   async getProgress(id: string, userId: string) {

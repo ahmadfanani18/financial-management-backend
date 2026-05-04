@@ -7,6 +7,10 @@ import {
   updateGoalHandler,
   deleteGoalHandler,
   addContributionHandler,
+  toggleLockHandler,
+  deleteGoalWithTransactionHandler,
+  getContributionsHandler,
+  addContributionWithAccountHandler,
 } from './controller.js';
 
 export async function goalRoutes(fastify: FastifyInstance) {
@@ -66,4 +70,44 @@ export async function goalRoutes(fastify: FastifyInstance) {
       },
     },
   }, addContributionHandler);
+
+  fastify.patch('/:id/lock', {
+    schema: {
+      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } } },
+    },
+  }, toggleLockHandler);
+
+  fastify.delete('/:id/with-transaction', {
+    schema: {
+      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } } },
+      body: {
+        type: 'object',
+        properties: {
+          accountId: { type: 'string', format: 'uuid' },
+        },
+      },
+    },
+  }, deleteGoalWithTransactionHandler);
+
+  fastify.get('/:id/contributions', {
+    schema: {
+      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } } },
+    },
+  }, getContributionsHandler);
+
+  fastify.post('/:id/contributions/with-account', {
+    schema: {
+      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } } },
+      body: {
+        type: 'object',
+        required: ['amount', 'date'],
+        properties: {
+          amount: { type: 'number' },
+          date: { type: 'string' },
+          note: { type: 'string' },
+          accountId: { type: 'string', format: 'uuid' },
+        },
+      },
+    },
+  }, addContributionWithAccountHandler);
 }
