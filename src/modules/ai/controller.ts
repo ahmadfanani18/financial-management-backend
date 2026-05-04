@@ -27,3 +27,22 @@ export async function suggestSavingsHandler(
   const result = await aiService.suggestSavings(request.user.id);
   return reply.send(result);
 }
+
+export async function generatePlanFromDataHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const result = await aiService.generatePlanFromData(request.user.id);
+  
+  if (result.error) {
+    return reply.status(400).send({ 
+      error: true,
+      message: result.message 
+    });
+  }
+  
+  return reply.send({
+    plan: result.plan,
+    summary: result.summary,
+  });
+}

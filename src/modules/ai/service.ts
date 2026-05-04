@@ -191,6 +191,146 @@ export class AIService {
         : 'Pertahankan kebiasaan keuangan Anda yang baik!',
     };
   }
+
+  async generatePlanFromData(userId: string) {
+    const accounts = await prisma.account.findMany({
+      where: { userId, isArchived: false },
+      select: { id: true, name: true, balance: true, type: true },
+    });
+
+    const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
+
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+    const transactions = await prisma.transaction.findMany({
+      where: {
+        userId,
+        date: { gte: threeMonthsAgo },
+      },
+      include: { category: true },
+    });
+
+    const transactionDates = transactions.map(t => new Date(t.date).getTime());
+    const minDate = transactionDates.length > 0 ? Math.min(...transactionDates) : Date.now();
+    const maxDate = transactionDates.length > 0 ? Math.max(...transactionDates) : Date.now();
+    const actualMonths = Math.max(1, Math.ceil((maxDate - minDate) / (30 * 24 * 60 * 60 * 1000)));
+
+    const totalIncome = transactions
+      .filter(t => t.type === 'INCOME')
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+    const monthlyIncome = totalIncome / actualMonths;
+
+    const totalExpense = transactions
+      .filter(t => t.type === 'EXPENSE')
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+    const monthlyExpense = totalExpense / actualMonths;
+
+    if (transactions.length < 5 || totalIncome === 0) {
+      return {
+        error: true,
+        message: 'Data transaksi tidak cukup. Tambahkan minimal 5 transaksi termasuk pendapatan untuk menghasilkan rencana.',
+        plan: null,
+        summary: null,
+      };
+    }
+
+    const expenseByCategory: Record<string, number> = {};
+    transactions
+      .filter(t => t.type === 'EXPENSE')
+      .forEach(t => {
+        const catName = t.category?.name || 'Lainnya';
+        expenseByCategory[catName] = (expenseByCategory[catName] || 0) + Number(t.amount);
+      });
+
+    const topExpenses = Object.entries(expenseByCategory)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    const savings = monthlyIncome - monthlyExpense;
+    const savingsDisplay = savings > 0 
+      ? savings.toLocaleString('id-ID')
+      : `Terjadi deficit ${Math.abs(savings).toLocaleString('id-ID')}`;
+
+    const planName = `Rencana Keuangan ${new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`;
+    const startDate = new Date();
+    const endDate = new Date();
+    endDate.setFullYear(endDate.getFullYear() + 1);
+
+    const milestones = [];
+
+    const emergencyFundTarget = monthlyExpense * 6;
+    const incomePercent = monthlyIncome > 0 ? Math.round((emergencyFundTarget / monthlyIncome) * 100) : 0;
+    milestones.push({
+      title: 'Dana Darurat',
+      description: `Tujuan: ${emergencyFundTarget.toLocaleString('id-ID')} (~${incomePercent}% dari pendapatan 6 bulan)`,
+      targetDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
+      targetAmount: emergencyFundTarget,
+    });
+
+    if (topExpenses.length > 0) {
+      const [topCategory, amount] = topExpenses[0];
+      const reductionTarget = amount * 0.2;
+      milestones.push({
+        title: `Kurangi Pengeluaran ${topCategory}`,
+        description: `Kurangi ${reductionTarget.toLocaleString('id-ID')}/bulan dari kategori ${topCategory}`,
+        targetDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+        targetAmount: reductionTarget * 3,
+      });
+    }
+
+    if (savings > 0) {
+      const savingsTarget = monthlyIncome * 0.2 * 12;
+      if (savingsTarget > 0) {
+        milestones.push({
+          title: 'Tabungan Tahunan',
+          description: `Tabungan ${Math.round(monthlyIncome * 0.2).toLocaleString('id-ID')}/bulan`,
+          targetDate: endDate,
+          targetAmount: savingsTarget,
+        });
+      }
+    } else {
+      milestones.push({
+        title: 'Kurangi Defisit',
+        description: `Kurangi pengeluaran ${Math.round(Math.abs(savings) * 0.3).toLocaleString('id-ID')}/bulan untuk mencapai keseimbangan`,
+        targetDate: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000),
+        targetAmount: Math.round(Math.abs(savings) * 0.3 * 4),
+      });
+    }
+
+    if (totalBalance > monthlyExpense * 3 && savings > 0) {
+      milestones.push({
+        title: 'Mulai Investasi',
+        description: 'Mulai investasi dengan 10% dari surplus',
+        targetDate: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000),
+        targetAmount: monthlyIncome * 0.1 * 6,
+      });
+    }
+
+    return {
+      error: false,
+      plan: {
+        name: planName,
+        description: `Rencana keuangan berdasarkan analisis data ${actualMonths} bulan terakhir. Pendapatan rata-rata: ${Math.round(monthlyIncome).toLocaleString('id-ID')}/bulan, Pengeluaran: ${Math.round(monthlyExpense).toLocaleString('id-ID')}/bulan.`,
+        startDate,
+        endDate,
+        status: 'ACTIVE' as const,
+        milestones: milestones.map((m, idx) => ({
+          ...m,
+          id: `temp-${idx}`,
+          isCompleted: false,
+          order: idx,
+        })),
+      },
+      summary: {
+        totalBalance: totalBalance.toLocaleString('id-ID'),
+        monthlyIncome: Math.round(monthlyIncome).toLocaleString('id-ID'),
+        monthlyExpense: Math.round(monthlyExpense).toLocaleString('id-ID'),
+        savings: savingsDisplay,
+        topExpenses: topExpenses.slice(0, 3).map(([cat, amt]) => ({ category: cat, amount: amt })),
+      },
+    };
+  }
 }
 
 export const aiService = new AIService();

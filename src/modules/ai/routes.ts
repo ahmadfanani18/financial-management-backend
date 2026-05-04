@@ -4,6 +4,7 @@ import {
   generatePlanHandler,
   predictSpendingHandler,
   suggestSavingsHandler,
+  generatePlanFromDataHandler,
 } from './controller.js';
 
 export async function aiRoutes(fastify: FastifyInstance) {
@@ -21,6 +22,27 @@ export async function aiRoutes(fastify: FastifyInstance) {
       },
     },
   }, generatePlanHandler);
+
+  fastify.post('/generate-plan-from-data', {
+    schema: {
+      response: { 
+        200: { 
+          type: 'object',
+          properties: {
+            plan: { type: 'object' },
+            summary: { type: 'object' },
+          },
+        },
+        400: {
+          type: 'object',
+          properties: {
+            error: { type: 'boolean' },
+            message: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, generatePlanFromDataHandler);
 
   fastify.post('/predict-spending', {
     schema: {
