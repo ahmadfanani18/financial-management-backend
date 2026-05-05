@@ -1,7 +1,8 @@
 const ALLOWED_ORIGINS = [
   'http://localhost:3000',
   'http://localhost:3001',
-  'https://financial-management-frontend.vercel.app'
+  'https://financial-management-frontend.vercel.app',
+  'https://financial-management-frontend-seven.vercel.app'
 ];
 
 const users: Array<{ id: number; email: string; password: string; name: string }> = [
