@@ -606,6 +606,15 @@ export default async function handler(req, res) {
     }
 
     // ==================== REPORTS ====================
+    // GET general reports
+    if (url === '/api/reports' && method === 'GET') {
+      const transactions = await db.transaction.findMany({ where: { userId: token.userId } });
+      const income = transactions.filter(t => t.type === 'INCOME').reduce((sum, t) => sum + t.amount, 0);
+      const expenses = transactions.filter(t => t.type === 'EXPENSE').reduce((sum, t) => sum + Math.abs(t.amount), 0);
+      res.status(200).send(JSON.stringify({ income, expenses, savings: income - expenses, byCategory: [] }));
+      return;
+    }
+
     // GET monthly report
     if (url === '/api/reports/monthly' && method === 'GET') {
       const params = new URL(req.url, 'http://localhost').searchParams;
