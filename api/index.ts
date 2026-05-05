@@ -1,15 +1,16 @@
 import 'dotenv/config';
-import { PrismaClient } from '@prisma/client';
 
-const prisma = process.env.DATABASE_URL 
-  ? new PrismaClient({
-      datasources: {
-        db: {
-          url: process.env.DIRECT_URL || process.env.DATABASE_URL
-        }
-      }
-    })
-  : new PrismaClient();
+let prisma: any = null;
+
+let prismaInstance: any = null;
+
+function getPrisma() {
+  if (!prismaInstance) {
+    const { PrismaClient } = require('@prisma/client');
+    prismaInstance = new PrismaClient();
+  }
+  return prismaInstance;
+}
 
 const ALLOWED_ORIGINS = [
   'http://localhost:3000',
@@ -60,7 +61,7 @@ export default async function handler(req: unknown, res: unknown) {
   try {
     // Health check
     if (url === '/api/health' && method === 'GET') {
-      await prisma.$connect();
+      await getPrisma().$connect();
       vercelRes.status(200).send(JSON.stringify({ status: 'ok', database: 'connected' }));
       return;
     }
@@ -72,7 +73,7 @@ export default async function handler(req: unknown, res: unknown) {
         vercelRes.status(400).send(JSON.stringify({ message: 'Email and password required' }));
         return;
       }
-      const user = await prisma.user.findUnique({ where: { email } });
+      const user = await getPrisma().user.findUnique({ where: { email } });
       if (!user) {
         vercelRes.status(401).send(JSON.stringify({ message: 'Invalid credentials' }));
         return;
@@ -88,14 +89,14 @@ export default async function handler(req: unknown, res: unknown) {
         vercelRes.status(400).send(JSON.stringify({ message: 'Email and password required' }));
         return;
       }
-      const existing = await prisma.user.findUnique({ where: { email } });
+      const existing = await getPrisma().user.findUnique({ where: { email } });
       if (existing) {
         vercelRes.status(400).send(JSON.stringify({ message: 'Email already exists' }));
         return;
       }
       const bcrypt = await import('bcryptjs');
       const hashedPassword = await bcrypt.hash(password, 10);
-      const user = await prisma.user.create({
+      const user = await getPrisma().user.create({
         data: { email, password: hashedPassword, name: name || email.split('@')[0] }
       });
       const token = simpleToken(user.id, user.email);
@@ -108,7 +109,7 @@ export default async function handler(req: unknown, res: unknown) {
         vercelRes.status(401).send(JSON.stringify({ message: 'Unauthorized' }));
         return;
       }
-      const user = await prisma.user.findUnique({ where: { id: token.userId } });
+      const user = await getPrisma().user.findUnique({ where: { id: token.userId } });
       if (!user) {
         vercelRes.status(404).send(JSON.stringify({ message: 'User not found' }));
         return;
@@ -127,7 +128,7 @@ export default async function handler(req: unknown, res: unknown) {
         vercelRes.status(400).send(JSON.stringify({ message: 'currentPassword and newPassword required' }));
         return;
       }
-      const user = await prisma.user.findUnique({ where: { id: token.userId } });
+      const user = await getPrisma().user.findUnique({ where: { id: token.userId } });
       if (!user) {
         vercelRes.status(404).send(JSON.stringify({ message: 'User not found' }));
         return;
@@ -139,7 +140,7 @@ export default async function handler(req: unknown, res: unknown) {
         return;
       }
       const hashedPassword = await bcrypt.hash(newPassword, 10);
-      await prisma.user.update({ where: { id: token.userId }, data: { password: hashedPassword } });
+      await getPrisma().user.update({ where: { id: token.userId }, data: { password: hashedPassword } });
       vercelRes.status(200).send(JSON.stringify({ message: 'Password updated successfully' }));
       return;
     }
@@ -151,7 +152,7 @@ export default async function handler(req: unknown, res: unknown) {
 
     // User endpoints
     if (url === '/api/user' && method === 'GET') {
-      const user = await prisma.user.findUnique({ where: { id: token.userId } });
+      const user = await getPrisma().user.findUnique({ where: { id: token.userId } });
       if (!user) {
         vercelRes.status(404).send(JSON.stringify({ message: 'User not found' }));
         return;
@@ -162,7 +163,7 @@ export default async function handler(req: unknown, res: unknown) {
 
     if (url === '/api/user' && method === 'PUT') {
       const { name } = (vercelReq.body as { name?: string }) || {};
-      const user = await prisma.user.update({
+      const user = await getPrisma().user.update({
         where: { id: token.userId },
         data: { name: name || undefined }
       });
@@ -171,7 +172,7 @@ export default async function handler(req: unknown, res: unknown) {
     }
 
     if (url === '/api/user/me' && method === 'GET') {
-      const user = await prisma.user.findUnique({ where: { id: token.userId } });
+      const user = await getPrisma().user.findUnique({ where: { id: token.userId } });
       if (!user) {
         vercelRes.status(404).send(JSON.stringify({ message: 'User not found' }));
         return;
@@ -182,7 +183,7 @@ export default async function handler(req: unknown, res: unknown) {
 
     // Account endpoints
     if (url === '/api/accounts' && method === 'GET') {
-      const accounts = await prisma.account.findMany({ where: { userId: token.userId } });
+      const accounts = await getPrisma().account.findMany({ where: { userId: token.userId } });
       vercelRes.status(200).send(JSON.stringify({ accounts }));
       return;
     }
@@ -193,7 +194,7 @@ export default async function handler(req: unknown, res: unknown) {
         vercelRes.status(400).send(JSON.stringify({ message: 'Name and type required' }));
         return;
       }
-      const account = await prisma.account.create({
+      const account = await getPrisma().account.create({
         data: {
           userId: token.userId,
           name: String(name),
@@ -209,7 +210,7 @@ export default async function handler(req: unknown, res: unknown) {
     }
 
     if (url === '/api/accounts/balance/total' && method === 'GET') {
-      const accounts = await prisma.account.findMany({ where: { userId: token.userId } });
+      const accounts = await getPrisma().account.findMany({ where: { userId: token.userId } });
       const total = accounts.reduce((sum, a) => sum + a.balance, 0);
       vercelRes.status(200).send(JSON.stringify({ total }));
       return;
@@ -217,7 +218,7 @@ export default async function handler(req: unknown, res: unknown) {
 
     if (url.match(/^\/api\/accounts\/[^/]+$/) && method === 'GET') {
       const id = url.split('/')[3];
-      const account = await prisma.account.findFirst({ where: { id, userId: token.userId } });
+      const account = await getPrisma().account.findFirst({ where: { id, userId: token.userId } });
       if (!account) {
         vercelRes.status(404).send(JSON.stringify({ message: 'Account not found' }));
         return;
@@ -228,15 +229,15 @@ export default async function handler(req: unknown, res: unknown) {
 
     if (url.match(/^\/api\/accounts\/[^/]+$/) && method === 'PUT') {
       const id = url.split('/')[3];
-      const account = await prisma.account.findFirst({ where: { id, userId: token.userId } });
+      const account = await getPrisma().account.findFirst({ where: { id, userId: token.userId } });
       if (!account) {
         vercelRes.status(404).send(JSON.stringify({ message: 'Account not found' }));
         return;
       }
       const updates = (vercelReq.body as Record<string, unknown>) || {};
-      const updated = await prisma.account.update({
+      const updated = await getPrisma().account.update({
         where: { id },
-        data: updates as Parameters<typeof prisma.account.update>[0]['data']
+        data: updates as Parameters<typeof getPrisma().account.update>[0]['data']
       });
       vercelRes.status(200).send(JSON.stringify(updated));
       return;
@@ -244,14 +245,14 @@ export default async function handler(req: unknown, res: unknown) {
 
     if (url.match(/^\/api\/accounts\/[^/]+$/) && method === 'DELETE') {
       const id = url.split('/')[3];
-      await prisma.account.deleteMany({ where: { id, userId: token.userId } });
+      await getPrisma().account.deleteMany({ where: { id, userId: token.userId } });
       vercelRes.status(204).send('');
       return;
     }
 
     // Category endpoints
     if (url === '/api/categories' && method === 'GET') {
-      const categories = await prisma.category.findMany({ where: { userId: token.userId } });
+      const categories = await getPrisma().category.findMany({ where: { userId: token.userId } });
       vercelRes.status(200).send(JSON.stringify({ categories }));
       return;
     }
@@ -262,7 +263,7 @@ export default async function handler(req: unknown, res: unknown) {
         vercelRes.status(400).send(JSON.stringify({ message: 'Name and type required' }));
         return;
       }
-      const category = await prisma.category.create({
+      const category = await getPrisma().category.create({
         data: {
           userId: token.userId,
           name: String(name),
@@ -277,7 +278,7 @@ export default async function handler(req: unknown, res: unknown) {
 
     if (url.match(/^\/api\/categories\/[^/]+$/) && method === 'GET') {
       const id = url.split('/')[3];
-      const category = await prisma.category.findFirst({ where: { id, userId: token.userId } });
+      const category = await getPrisma().category.findFirst({ where: { id, userId: token.userId } });
       if (!category) {
         vercelRes.status(404).send(JSON.stringify({ message: 'Category not found' }));
         return;
@@ -289,9 +290,9 @@ export default async function handler(req: unknown, res: unknown) {
     if (url.match(/^\/api\/categories\/[^/]+$/) && method === 'PUT') {
       const id = url.split('/')[3];
       const updates = (vercelReq.body as Record<string, unknown>) || {};
-      const updated = await prisma.category.update({
+      const updated = await getPrisma().category.update({
         where: { id },
-        data: updates as Parameters<typeof prisma.category.update>[0]['data']
+        data: updates as Parameters<typeof getPrisma().category.update>[0]['data']
       });
       vercelRes.status(200).send(JSON.stringify(updated));
       return;
@@ -299,14 +300,14 @@ export default async function handler(req: unknown, res: unknown) {
 
     if (url.match(/^\/api\/categories\/[^/]+$/) && method === 'DELETE') {
       const id = url.split('/')[3];
-      await prisma.category.deleteMany({ where: { id, userId: token.userId } });
+      await getPrisma().category.deleteMany({ where: { id, userId: token.userId } });
       vercelRes.status(204).send('');
       return;
     }
 
     // Transaction endpoints
     if (url === '/api/transactions' && method === 'GET') {
-      const transactions = await prisma.transaction.findMany({
+      const transactions = await getPrisma().transaction.findMany({
         where: { userId: token.userId },
         include: { account: true, category: true },
         orderBy: { date: 'desc' }
@@ -316,7 +317,7 @@ export default async function handler(req: unknown, res: unknown) {
     }
 
     if (url === '/api/transactions/recent' && method === 'GET') {
-      const transactions = await prisma.transaction.findMany({
+      const transactions = await getPrisma().transaction.findMany({
         where: { userId: token.userId },
         include: { account: true, category: true },
         orderBy: { date: 'desc' },
@@ -327,7 +328,7 @@ export default async function handler(req: unknown, res: unknown) {
     }
 
     if (url === '/api/transactions/summary' && method === 'GET') {
-      const transactions = await prisma.transaction.findMany({ where: { userId: token.userId } });
+      const transactions = await getPrisma().transaction.findMany({ where: { userId: token.userId } });
       const income = transactions.filter(t => t.type === 'INCOME').reduce((sum, t) => sum + t.amount, 0);
       const expense = transactions.filter(t => t.type === 'EXPENSE').reduce((sum, t) => sum + Math.abs(t.amount), 0);
       vercelRes.status(200).send(JSON.stringify({ income, expense, balance: income - expense }));
@@ -340,7 +341,7 @@ export default async function handler(req: unknown, res: unknown) {
         vercelRes.status(400).send(JSON.stringify({ message: 'accountId, type, amount, description required' }));
         return;
       }
-      const transaction = await prisma.transaction.create({
+      const transaction = await getPrisma().transaction.create({
         data: {
           userId: token.userId,
           accountId: String(accountId),
@@ -357,7 +358,7 @@ export default async function handler(req: unknown, res: unknown) {
 
     if (url.match(/^\/api\/transactions\/[^/]+$/) && method === 'GET') {
       const id = url.split('/')[3];
-      const transaction = await prisma.transaction.findFirst({ where: { id, userId: token.userId } });
+      const transaction = await getPrisma().transaction.findFirst({ where: { id, userId: token.userId } });
       if (!transaction) {
         vercelRes.status(404).send(JSON.stringify({ message: 'Transaction not found' }));
         return;
@@ -369,9 +370,9 @@ export default async function handler(req: unknown, res: unknown) {
     if (url.match(/^\/api\/transactions\/[^/]+$/) && method === 'PUT') {
       const id = url.split('/')[3];
       const updates = (vercelReq.body as Record<string, unknown>) || {};
-      const updated = await prisma.transaction.update({
+      const updated = await getPrisma().transaction.update({
         where: { id },
-        data: updates as Parameters<typeof prisma.transaction.update>[0]['data']
+        data: updates as Parameters<typeof getPrisma().transaction.update>[0]['data']
       });
       vercelRes.status(200).send(JSON.stringify(updated));
       return;
@@ -379,14 +380,14 @@ export default async function handler(req: unknown, res: unknown) {
 
     if (url.match(/^\/api\/transactions\/[^/]+$/) && method === 'DELETE') {
       const id = url.split('/')[3];
-      await prisma.transaction.deleteMany({ where: { id, userId: token.userId } });
+      await getPrisma().transaction.deleteMany({ where: { id, userId: token.userId } });
       vercelRes.status(204).send('');
       return;
     }
 
     // Budget endpoints
     if (url === '/api/budgets' && method === 'GET') {
-      const budgets = await prisma.budget.findMany({
+      const budgets = await getPrisma().budget.findMany({
         where: { userId: token.userId },
         include: { category: true }
       });
@@ -395,7 +396,7 @@ export default async function handler(req: unknown, res: unknown) {
     }
 
     if (url === '/api/budgets/summary' && method === 'GET') {
-      const budgets = await prisma.budget.findMany({ where: { userId: token.userId } });
+      const budgets = await getPrisma().budget.findMany({ where: { userId: token.userId } });
       const totalBudget = budgets.reduce((sum, b) => sum + b.amount, 0);
       const totalSpent = budgets.reduce((sum, b) => sum + b.spent, 0);
       vercelRes.status(200).send(JSON.stringify({ totalBudget, totalSpent, remaining: totalBudget - totalSpent }));
@@ -408,7 +409,7 @@ export default async function handler(req: unknown, res: unknown) {
         vercelRes.status(400).send(JSON.stringify({ message: 'categoryId and amount required' }));
         return;
       }
-      const budget = await prisma.budget.create({
+      const budget = await getPrisma().budget.create({
         data: {
           userId: token.userId,
           categoryId: String(categoryId),
@@ -425,7 +426,7 @@ export default async function handler(req: unknown, res: unknown) {
 
     if (url.match(/^\/api\/budgets\/[^/]+$/) && method === 'GET') {
       const id = url.split('/')[3];
-      const budget = await prisma.budget.findFirst({ where: { id, userId: token.userId }, include: { category: true } });
+      const budget = await getPrisma().budget.findFirst({ where: { id, userId: token.userId }, include: { category: true } });
       if (!budget) {
         vercelRes.status(404).send(JSON.stringify({ message: 'Budget not found' }));
         return;
@@ -437,7 +438,7 @@ export default async function handler(req: unknown, res: unknown) {
     if (url.match(/^\/api\/budgets\/[^/]+\/spent$/) && method === 'PUT') {
       const id = url.split('/')[3];
       const { spent } = (vercelReq.body as { spent?: number }) || {};
-      const budget = await prisma.budget.update({
+      const budget = await getPrisma().budget.update({
         where: { id },
         data: { spent: spent || 0 }
       });
@@ -448,9 +449,9 @@ export default async function handler(req: unknown, res: unknown) {
     if (url.match(/^\/api\/budgets\/[^/]+$/) && method === 'PUT') {
       const id = url.split('/')[3];
       const updates = (vercelReq.body as Record<string, unknown>) || {};
-      const updated = await prisma.budget.update({
+      const updated = await getPrisma().budget.update({
         where: { id },
-        data: updates as Parameters<typeof prisma.budget.update>[0]['data']
+        data: updates as Parameters<typeof getPrisma().budget.update>[0]['data']
       });
       vercelRes.status(200).send(JSON.stringify(updated));
       return;
@@ -458,20 +459,20 @@ export default async function handler(req: unknown, res: unknown) {
 
     if (url.match(/^\/api\/budgets\/[^/]+$/) && method === 'DELETE') {
       const id = url.split('/')[3];
-      await prisma.budget.deleteMany({ where: { id, userId: token.userId } });
+      await getPrisma().budget.deleteMany({ where: { id, userId: token.userId } });
       vercelRes.status(204).send('');
       return;
     }
 
     // Goal endpoints
     if (url === '/api/goals' && method === 'GET') {
-      const goals = await prisma.goal.findMany({ where: { userId: token.userId } });
+      const goals = await getPrisma().goal.findMany({ where: { userId: token.userId } });
       vercelRes.status(200).send(JSON.stringify({ goals }));
       return;
     }
 
     if (url === '/api/goals/overview' && method === 'GET') {
-      const goals = await prisma.goal.findMany({ where: { userId: token.userId } });
+      const goals = await getPrisma().goal.findMany({ where: { userId: token.userId } });
       const totalTarget = goals.reduce((sum, g) => sum + g.targetAmount, 0);
       const totalSaved = goals.reduce((sum, g) => sum + g.currentAmount, 0);
       vercelRes.status(200).send(JSON.stringify({ totalTarget, totalSaved, progress: totalTarget > 0 ? (totalSaved / totalTarget) * 100 : 0 }));
@@ -484,7 +485,7 @@ export default async function handler(req: unknown, res: unknown) {
         vercelRes.status(400).send(JSON.stringify({ message: 'name, targetAmount, deadline required' }));
         return;
       }
-      const goal = await prisma.goal.create({
+      const goal = await getPrisma().goal.create({
         data: {
           userId: token.userId,
           name: String(name),
@@ -501,7 +502,7 @@ export default async function handler(req: unknown, res: unknown) {
 
     if (url.match(/^\/api\/goals\/[^/]+$/) && method === 'GET') {
       const id = url.split('/')[3];
-      const goal = await prisma.goal.findFirst({ where: { id, userId: token.userId } });
+      const goal = await getPrisma().goal.findFirst({ where: { id, userId: token.userId } });
       if (!goal) {
         vercelRes.status(404).send(JSON.stringify({ message: 'Goal not found' }));
         return;
@@ -513,9 +514,9 @@ export default async function handler(req: unknown, res: unknown) {
     if (url.match(/^\/api\/goals\/[^/]+$/) && method === 'PUT') {
       const id = url.split('/')[3];
       const updates = (vercelReq.body as Record<string, unknown>) || {};
-      const updated = await prisma.goal.update({
+      const updated = await getPrisma().goal.update({
         where: { id },
-        data: updates as Parameters<typeof prisma.goal.update>[0]['data']
+        data: updates as Parameters<typeof getPrisma().goal.update>[0]['data']
       });
       vercelRes.status(200).send(JSON.stringify(updated));
       return;
@@ -523,7 +524,7 @@ export default async function handler(req: unknown, res: unknown) {
 
     if (url.match(/^\/api\/goals\/[^/]+$/) && method === 'DELETE') {
       const id = url.split('/')[3];
-      await prisma.goal.deleteMany({ where: { id, userId: token.userId } });
+      await getPrisma().goal.deleteMany({ where: { id, userId: token.userId } });
       vercelRes.status(204).send('');
       return;
     }
@@ -535,7 +536,7 @@ export default async function handler(req: unknown, res: unknown) {
         vercelRes.status(400).send(JSON.stringify({ message: 'amount and date required' }));
         return;
       }
-      await prisma.goalContribution.create({
+      await getPrisma().goalContribution.create({
         data: {
           goalId: id,
           userId: token.userId,
@@ -544,7 +545,7 @@ export default async function handler(req: unknown, res: unknown) {
           note: note || null
         }
       });
-      const goal = await prisma.goal.update({
+      const goal = await getPrisma().goal.update({
         where: { id },
         data: { currentAmount: { increment: amount } }
       });
@@ -554,19 +555,19 @@ export default async function handler(req: unknown, res: unknown) {
 
     if (url.match(/^\/api\/goals\/[^/]+\/contributions$/) && method === 'GET') {
       const id = url.split('/')[3];
-      const contributions = await prisma.goalContribution.findMany({ where: { goalId: id, userId: token.userId } });
+      const contributions = await getPrisma().goalContribution.findMany({ where: { goalId: id, userId: token.userId } });
       vercelRes.status(200).send(JSON.stringify({ contributions }));
       return;
     }
 
     if (url.match(/^\/api\/goals\/[^/]+\/lock$/) && method === 'PATCH') {
       const id = url.split('/')[3];
-      const goal = await prisma.goal.findFirst({ where: { id, userId: token.userId } });
+      const goal = await getPrisma().goal.findFirst({ where: { id, userId: token.userId } });
       if (!goal) {
         vercelRes.status(404).send(JSON.stringify({ message: 'Goal not found' }));
         return;
       }
-      const updated = await prisma.goal.update({
+      const updated = await getPrisma().goal.update({
         where: { id },
         data: { locked: !goal.locked }
       });
@@ -576,7 +577,7 @@ export default async function handler(req: unknown, res: unknown) {
 
     // Plan endpoints
     if (url === '/api/plans' && method === 'GET') {
-      const plans = await prisma.plan.findMany({ where: { userId: token.userId }, include: { milestones: true } });
+      const plans = await getPrisma().plan.findMany({ where: { userId: token.userId }, include: { milestones: true } });
       vercelRes.status(200).send(JSON.stringify({ plans }));
       return;
     }
@@ -587,7 +588,7 @@ export default async function handler(req: unknown, res: unknown) {
         vercelRes.status(400).send(JSON.stringify({ message: 'name required' }));
         return;
       }
-      const plan = await prisma.plan.create({
+      const plan = await getPrisma().plan.create({
         data: {
           userId: token.userId,
           name: String(name),
@@ -601,7 +602,7 @@ export default async function handler(req: unknown, res: unknown) {
 
     if (url.match(/^\/api\/plans\/[^/]+$/) && method === 'GET') {
       const id = url.split('/')[3];
-      const plan = await prisma.plan.findFirst({ where: { id, userId: token.userId }, include: { milestones: true } });
+      const plan = await getPrisma().plan.findFirst({ where: { id, userId: token.userId }, include: { milestones: true } });
       if (!plan) {
         vercelRes.status(404).send(JSON.stringify({ message: 'Plan not found' }));
         return;
@@ -613,9 +614,9 @@ export default async function handler(req: unknown, res: unknown) {
     if (url.match(/^\/api\/plans\/[^/]+$/) && method === 'PUT') {
       const id = url.split('/')[3];
       const updates = (vercelReq.body as Record<string, unknown>) || {};
-      const updated = await prisma.plan.update({
+      const updated = await getPrisma().plan.update({
         where: { id },
-        data: updates as Parameters<typeof prisma.plan.update>[0]['data']
+        data: updates as Parameters<typeof getPrisma().plan.update>[0]['data']
       });
       vercelRes.status(200).send(JSON.stringify(updated));
       return;
@@ -623,7 +624,7 @@ export default async function handler(req: unknown, res: unknown) {
 
     if (url.match(/^\/api\/plans\/[^/]+$/) && method === 'DELETE') {
       const id = url.split('/')[3];
-      await prisma.plan.deleteMany({ where: { id, userId: token.userId } });
+      await getPrisma().plan.deleteMany({ where: { id, userId: token.userId } });
       vercelRes.status(204).send('');
       return;
     }
@@ -631,7 +632,7 @@ export default async function handler(req: unknown, res: unknown) {
     // Milestones endpoints
     if (url.match(/^\/api\/plans\/[^/]+\/milestones$/) && method === 'GET') {
       const planId = url.split('/')[3];
-      const plan = await prisma.plan.findFirst({ where: { id: planId, userId: token.userId }, include: { milestones: true } });
+      const plan = await getPrisma().plan.findFirst({ where: { id: planId, userId: token.userId }, include: { milestones: true } });
       if (!plan) {
         vercelRes.status(404).send(JSON.stringify({ message: 'Plan not found' }));
         return;
@@ -642,7 +643,7 @@ export default async function handler(req: unknown, res: unknown) {
 
     if (url.match(/^\/api\/plans\/[^/]+\/milestones$/) && method === 'POST') {
       const planId = url.split('/')[3];
-      const plan = await prisma.plan.findFirst({ where: { id: planId, userId: token.userId } });
+      const plan = await getPrisma().plan.findFirst({ where: { id: planId, userId: token.userId } });
       if (!plan) {
         vercelRes.status(404).send(JSON.stringify({ message: 'Plan not found' }));
         return;
@@ -652,7 +653,7 @@ export default async function handler(req: unknown, res: unknown) {
         vercelRes.status(400).send(JSON.stringify({ message: 'title and targetDate required' }));
         return;
       }
-      const milestone = await prisma.milestone.create({
+      const milestone = await getPrisma().milestone.create({
         data: {
           planId,
           title,
@@ -669,15 +670,15 @@ export default async function handler(req: unknown, res: unknown) {
     if (url.match(/^\/api\/plans\/[^/]+\/milestones\/[^/]+$/) && method === 'PUT') {
       const planId = url.split('/')[3];
       const milestoneId = url.split('/')[5];
-      const plan = await prisma.plan.findFirst({ where: { id: planId, userId: token.userId } });
+      const plan = await getPrisma().plan.findFirst({ where: { id: planId, userId: token.userId } });
       if (!plan) {
         vercelRes.status(404).send(JSON.stringify({ message: 'Plan not found' }));
         return;
       }
       const updates = (vercelReq.body as Record<string, unknown>) || {};
-      const updated = await prisma.milestone.update({
+      const updated = await getPrisma().milestone.update({
         where: { id: milestoneId },
-        data: updates as Parameters<typeof prisma.milestone.update>[0]['data']
+        data: updates as Parameters<typeof getPrisma().milestone.update>[0]['data']
       });
       vercelRes.status(200).send(JSON.stringify(updated));
       return;
@@ -686,12 +687,12 @@ export default async function handler(req: unknown, res: unknown) {
     if (url.match(/^\/api\/plans\/[^/]+\/milestones\/[^/]+\/complete$/) && method === 'PATCH') {
       const planId = url.split('/')[3];
       const milestoneId = url.split('/')[5];
-      const plan = await prisma.plan.findFirst({ where: { id: planId, userId: token.userId } });
+      const plan = await getPrisma().plan.findFirst({ where: { id: planId, userId: token.userId } });
       if (!plan) {
         vercelRes.status(404).send(JSON.stringify({ message: 'Plan not found' }));
         return;
       }
-      const updated = await prisma.milestone.update({
+      const updated = await getPrisma().milestone.update({
         where: { id: milestoneId },
         data: { isCompleted: true, completedAt: new Date() }
       });
@@ -702,34 +703,34 @@ export default async function handler(req: unknown, res: unknown) {
     if (url.match(/^\/api\/plans\/[^/]+\/milestones\/[^/]+$/) && method === 'DELETE') {
       const planId = url.split('/')[3];
       const milestoneId = url.split('/')[5];
-      await prisma.plan.findFirst({ where: { id: planId, userId: token.userId } });
-      await prisma.milestone.delete({ where: { id: milestoneId } });
+      await getPrisma().plan.findFirst({ where: { id: planId, userId: token.userId } });
+      await getPrisma().milestone.delete({ where: { id: milestoneId } });
       vercelRes.status(204).send('');
       return;
     }
 
     // Notification endpoints
     if (url === '/api/notifications' && method === 'GET') {
-      const notifications = await prisma.notification.findMany({ where: { userId: token.userId }, orderBy: { createdAt: 'desc' } });
+      const notifications = await getPrisma().notification.findMany({ where: { userId: token.userId }, orderBy: { createdAt: 'desc' } });
       vercelRes.status(200).send(JSON.stringify({ notifications }));
       return;
     }
 
     if (url === '/api/notifications/unread' && method === 'GET') {
-      const notifications = await prisma.notification.findMany({ where: { userId: token.userId, isRead: false }, orderBy: { createdAt: 'desc' } });
+      const notifications = await getPrisma().notification.findMany({ where: { userId: token.userId, isRead: false }, orderBy: { createdAt: 'desc' } });
       vercelRes.status(200).send(JSON.stringify({ notifications }));
       return;
     }
 
     if (url === '/api/notifications/unread/count' && method === 'GET') {
-      const count = await prisma.notification.count({ where: { userId: token.userId, isRead: false } });
+      const count = await getPrisma().notification.count({ where: { userId: token.userId, isRead: false } });
       vercelRes.status(200).send(JSON.stringify({ count }));
       return;
     }
 
     if (url.match(/^\/api\/notifications\/[^/]+\/read$/) && method === 'PATCH') {
       const id = url.split('/')[3];
-      const updated = await prisma.notification.update({
+      const updated = await getPrisma().notification.update({
         where: { id, userId: token.userId },
         data: { isRead: true }
       });
@@ -738,7 +739,7 @@ export default async function handler(req: unknown, res: unknown) {
     }
 
     if (url === '/api/notifications/read-all' && method === 'PATCH') {
-      await prisma.notification.updateMany({
+      await getPrisma().notification.updateMany({
         where: { userId: token.userId, isRead: false },
         data: { isRead: true }
       });
@@ -748,7 +749,7 @@ export default async function handler(req: unknown, res: unknown) {
 
     if (url.match(/^\/api\/notifications\/[^/]+$/) && method === 'DELETE') {
       const id = url.split('/')[3];
-      await prisma.notification.deleteMany({ where: { id, userId: token.userId } });
+      await getPrisma().notification.deleteMany({ where: { id, userId: token.userId } });
       vercelRes.status(204).send('');
       return;
     }
@@ -772,7 +773,7 @@ export default async function handler(req: unknown, res: unknown) {
 
     // Report endpoints (basic)
     if (url === '/api/reports' && method === 'GET') {
-      const transactions = await prisma.transaction.findMany({ where: { userId: token.userId } });
+      const transactions = await getPrisma().transaction.findMany({ where: { userId: token.userId } });
       const income = transactions.filter(t => t.type === 'INCOME').reduce((sum, t) => sum + t.amount, 0);
       const expenses = transactions.filter(t => t.type === 'EXPENSE').reduce((sum, t) => sum + Math.abs(t.amount), 0);
       vercelRes.status(200).send(JSON.stringify({ income, expenses, savings: income - expenses, byCategory: [] }));

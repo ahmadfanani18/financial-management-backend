@@ -11,6 +11,5 @@
       "dest": "/api/index.ts"
     }
   ],
-  "buildCommand": "npx prisma generate && npm run build",
-  "installCommand": "npm install"
+  "installCommand": "npm install && npx prisma generate"
 }
