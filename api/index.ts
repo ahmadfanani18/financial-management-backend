@@ -37,7 +37,11 @@ const db = {
   ]
 };
 
-let idCounters = { accounts: 3, categories: 4, transactions: 3, budgets: 2, goals: 2, plans: 2, notifications: 2 };
+const contributions: Array<{ id: string; goalId: string; userId: number; amount: number; date: string; note: string | null }> = [
+  { id: '1', goalId: '1', userId: 1, amount: 500000, date: '2026-05-01', note: 'First contribution' }
+];
+
+let idCounters = { accounts: 3, categories: 4, transactions: 3, budgets: 2, goals: 2, plans: 2, notifications: 2, contributions: 2 };
 
 function generateId(type: keyof typeof idCounters): string {
   return String(idCounters[type]++);
@@ -150,6 +154,22 @@ export default async function handler(req: unknown, res: unknown) {
     return;
   }
 
+  if (url === '/api/auth/change-password' && method === 'PUT') {
+    const { currentPassword, newPassword } = (vercelReq.body as { currentPassword?: string; newPassword?: string }) || {};
+    if (!currentPassword || !newPassword) {
+      vercelRes.status(400).send(JSON.stringify({ message: 'currentPassword and newPassword required' }));
+      return;
+    }
+    const user = users.find(u => u.id === token?.userId);
+    if (!user || user.password !== currentPassword) {
+      vercelRes.status(401).send(JSON.stringify({ message: 'Current password is incorrect' }));
+      return;
+    }
+    user.password = newPassword;
+    vercelRes.status(200).send(JSON.stringify({ message: 'Password updated successfully' }));
+    return;
+  }
+
   // All other endpoints require authentication
   if (!token) {
     vercelRes.status(401).send(JSON.stringify({ message: 'Unauthorized' }));
@@ -163,6 +183,18 @@ export default async function handler(req: unknown, res: unknown) {
       vercelRes.status(404).send(JSON.stringify({ message: 'User not found' }));
       return;
     }
+    vercelRes.status(200).send(JSON.stringify({ id: user.id, email: user.email, name: user.name }));
+    return;
+  }
+
+  if (url === '/api/user' && method === 'PUT') {
+    const { name } = (vercelReq.body as { name?: string }) || {};
+    const user = users.find(u => u.id === token.userId);
+    if (!user) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'User not found' }));
+      return;
+    }
+    if (name) user.name = name;
     vercelRes.status(200).send(JSON.stringify({ id: user.id, email: user.email, name: user.name }));
     return;
   }
@@ -559,6 +591,91 @@ export default async function handler(req: unknown, res: unknown) {
     return;
   }
 
+  if (url.match(/^\/api\/goals\/[^/]+\/contributions$/) && method === 'GET') {
+    const id = url.split('/')[3];
+    const goalContributions = contributions.filter(c => c.goalId === id && c.userId === token.userId);
+    vercelRes.status(200).send(JSON.stringify({ contributions: goalContributions }));
+    return;
+  }
+
+  if (url.match(/^\/api\/goals\/[^/]+\/contributions\/with-account$/) && method === 'POST') {
+    const id = url.split('/')[3];
+    const { amount, date, note, accountId, categoryId } = (vercelReq.body as { amount?: number; date?: string; note?: string; accountId?: string; categoryId?: string }) || {};
+    if (!amount || !date) {
+      vercelRes.status(400).send(JSON.stringify({ message: 'amount and date required' }));
+      return;
+    }
+    const goal = db.goals.find(g => g.id === id && g.userId === token.userId);
+    if (!goal) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'Goal not found' }));
+      return;
+    }
+    const newContribution = { id: String(idCounters.contributions++), goalId: id, userId: token.userId, amount, date, note: note || null };
+    contributions.push(newContribution);
+    goal.currentAmount += amount;
+    vercelRes.status(201).send(JSON.stringify(newContribution));
+    return;
+  }
+
+  if (url.match(/^\/api\/goals\/from-milestone\/[^/]+$/) && method === 'POST') {
+    const milestoneId = url.split('/')[4];
+    const plan = db.plans.find(p => p.userId === token.userId);
+    if (!plan || !(plan as { milestones?: unknown[] }).milestones) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'Plan or milestone not found' }));
+      return;
+    }
+    const milestones = (plan as { milestones: Array<{ id: string; title: string; targetAmount?: number; targetDate: string }> }).milestones;
+    const milestone = milestones.find(m => m.id === milestoneId);
+    if (!milestone) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'Milestone not found' }));
+      return;
+    }
+    const newGoal = { 
+      id: generateId('goals'), 
+      userId: token.userId, 
+      name: milestone.title,
+      targetAmount: milestone.targetAmount || 1000000,
+      currentAmount: 0,
+      deadline: milestone.targetDate,
+      icon: 'target',
+      color: '#10B981',
+      locked: false
+    };
+    db.goals.push(newGoal);
+    vercelRes.status(201).send(JSON.stringify(newGoal));
+    return;
+  }
+
+  if (url.match(/^\/api\/goals\/[^/]+\/with-transaction$/) && method === 'DELETE') {
+    const id = url.split('/')[3];
+    const { accountId } = (vercelReq.body as { accountId?: string }) || {};
+    const index = db.goals.findIndex(g => g.id === id && g.userId === token.userId);
+    if (index === -1) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'Goal not found' }));
+      return;
+    }
+    const goal = db.goals[index];
+    if (accountId) {
+      const account = db.accounts.find(a => a.id === accountId && a.userId === token.userId);
+      if (account) account.balance += goal.currentAmount;
+    }
+    db.goals.splice(index, 1);
+    vercelRes.status(200).send(JSON.stringify({ message: 'Goal deleted successfully' }));
+    return;
+  }
+
+  if (url.match(/^\/api\/goals\/[^/]+\/with-refund$/) && method === 'DELETE') {
+    const id = url.split('/')[3];
+    const index = db.goals.findIndex(g => g.id === id && g.userId === token.userId);
+    if (index === -1) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'Goal not found' }));
+      return;
+    }
+    db.goals.splice(index, 1);
+    vercelRes.status(200).send(JSON.stringify({ message: 'Goal deleted with refund' }));
+    return;
+  }
+
   // Plan endpoints
   if (url === '/api/plans' && method === 'GET') {
     const plans = db.plans.filter(p => p.userId === token.userId);
@@ -618,6 +735,208 @@ export default async function handler(req: unknown, res: unknown) {
     }
     db.plans.splice(index, 1);
     vercelRes.status(204).send('');
+    return;
+  }
+
+  if (url.match(/^\/api\/plans\/[^/]+\/milestones$/) && method === 'POST') {
+    const planId = url.split('/')[3];
+    const plan = db.plans.find(p => p.id === planId && p.userId === token.userId);
+    if (!plan) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'Plan not found' }));
+      return;
+    }
+    const { title, description, targetDate, targetAmount } = (vercelReq.body as { title?: string; description?: string; targetDate?: string; targetAmount?: number }) || {};
+    if (!title || !targetDate) {
+      vercelRes.status(400).send(JSON.stringify({ message: 'title and targetDate required' }));
+      return;
+    }
+    if (!(plan as { milestones?: unknown[] }).milestones) (plan as { milestones: unknown[] }).milestones = [];
+    const milestones = plan as { milestones: Array<{ id: string; title: string; description: string; targetDate: string; targetAmount: number; goalId: string | null; isCompleted: boolean; completedAt: string | null; order: number }> };
+    const newMilestone = { 
+      id: String(milestones.milestones.length + 1), 
+      title, 
+      description: description || '', 
+      targetDate, 
+      targetAmount: targetAmount || 0, 
+      goalId: null, 
+      isCompleted: false, 
+      completedAt: null, 
+      order: milestones.milestones.length 
+    };
+    milestones.milestones.push(newMilestone);
+    vercelRes.status(201).send(JSON.stringify(newMilestone));
+    return;
+  }
+
+  if (url.match(/^\/api\/plans\/[^/]+\/milestones\/reorder$/) && method === 'PUT') {
+    const planId = url.split('/')[3];
+    const plan = db.plans.find(p => p.id === planId && p.userId === token.userId);
+    if (!plan) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'Plan not found' }));
+      return;
+    }
+    const { milestones: reorderMilestones } = (vercelReq.body as { milestones?: Array<{ id: string; order: number }> }) || {};
+    if (!reorderMilestones) {
+      vercelRes.status(400).send(JSON.stringify({ message: 'milestones array required' }));
+      return;
+    }
+    if (!(plan as { milestones?: unknown[] }).milestones) (plan as { milestones: unknown[] }).milestones = [];
+    const milestones = plan as { milestones: Array<{ id: string; order: number }> };
+    reorderMilestones.forEach(m => {
+      const existing = milestones.milestones.find(milestone => milestone.id === m.id);
+      if (existing) existing.order = m.order;
+    });
+    vercelRes.status(200).send(JSON.stringify(plan));
+    return;
+  }
+
+  if (url.match(/^\/api\/plans\/[^/]+\/milestones\/[^/]+$/) && method === 'PUT') {
+    const planId = url.split('/')[3];
+    const milestoneId = url.split('/')[5];
+    const plan = db.plans.find(p => p.id === planId && p.userId === token.userId);
+    if (!plan || !(plan as { milestones?: unknown[] }).milestones) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'Plan or milestone not found' }));
+      return;
+    }
+    const milestones = plan as { milestones: Array<{ id: string }> };
+    const milestone = milestones.milestones.find(m => m.id === milestoneId);
+    if (!milestone) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'Milestone not found' }));
+      return;
+    }
+    const updates = (vercelReq.body as Record<string, unknown>) || {};
+    Object.assign(milestone, updates);
+    vercelRes.status(200).send(JSON.stringify(milestone));
+    return;
+  }
+
+  if (url.match(/^\/api\/plans\/[^/]+\/milestones\/[^/]+$/) && method === 'DELETE') {
+    const planId = url.split('/')[3];
+    const milestoneId = url.split('/')[5];
+    const plan = db.plans.find(p => p.id === planId && p.userId === token.userId);
+    if (!plan || !(plan as { milestones?: unknown[] }).milestones) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'Plan or milestone not found' }));
+      return;
+    }
+    const milestones = plan as { milestones: Array<{ id: string }> };
+    const index = milestones.milestones.findIndex(m => m.id === milestoneId);
+    if (index === -1) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'Milestone not found' }));
+      return;
+    }
+    milestones.milestones.splice(index, 1);
+    vercelRes.status(204).send('');
+    return;
+  }
+
+  if (url.match(/^\/api\/plans\/[^/]+\/milestones\/[^/]+\/complete$/) && method === 'PATCH') {
+    const planId = url.split('/')[3];
+    const milestoneId = url.split('/')[5];
+    const plan = db.plans.find(p => p.id === planId && p.userId === token.userId);
+    if (!plan || !(plan as { milestones?: unknown[] }).milestones) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'Plan or milestone not found' }));
+      return;
+    }
+    const milestones = plan as { milestones: Array<{ id: string; isCompleted: boolean; completedAt: string }> };
+    const milestone = milestones.milestones.find(m => m.id === milestoneId);
+    if (!milestone) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'Milestone not found' }));
+      return;
+    }
+    milestone.isCompleted = true;
+    milestone.completedAt = new Date().toISOString();
+    vercelRes.status(200).send(JSON.stringify(milestone));
+    return;
+  }
+
+  if (url.match(/^\/api\/plans\/[^/]+\/link-budget$/) && method === 'POST') {
+    const planId = url.split('/')[3];
+    const { budgetId } = (vercelReq.body as { budgetId?: string }) || {};
+    const plan = db.plans.find(p => p.id === planId && p.userId === token.userId);
+    if (!plan) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'Plan not found' }));
+      return;
+    }
+    if (!(plan as { linkedBudgets?: string[] }).linkedBudgets) (plan as { linkedBudgets: string[] }).linkedBudgets = [];
+    const linkedBudgets = plan as { linkedBudgets: string[] };
+    if (budgetId && !linkedBudgets.linkedBudgets.includes(budgetId)) {
+      linkedBudgets.linkedBudgets.push(budgetId);
+    }
+    vercelRes.status(200).send(JSON.stringify({ linkedBudgets: linkedBudgets.linkedBudgets }));
+    return;
+  }
+
+  if (url.match(/^\/api\/plans\/[^/]+\/link-budget\/[^/]+$/) && method === 'DELETE') {
+    const planId = url.split('/')[3];
+    const budgetIdToRemove = url.split('/')[5];
+    const plan = db.plans.find(p => p.id === planId && p.userId === token.userId);
+    if (!plan || !(plan as { linkedBudgets?: string[] }).linkedBudgets) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'Plan not found' }));
+      return;
+    }
+    const linkedBudgets = plan as { linkedBudgets: string[] };
+    linkedBudgets.linkedBudgets = linkedBudgets.linkedBudgets.filter(id => id !== budgetIdToRemove);
+    vercelRes.status(200).send(JSON.stringify({ linkedBudgets: linkedBudgets.linkedBudgets }));
+    return;
+  }
+
+  if (url.match(/^\/api\/plans\/[^/]+\/link-goal$/) && method === 'POST') {
+    const planId = url.split('/')[3];
+    const { goalId } = (vercelReq.body as { goalId?: string }) || {};
+    const plan = db.plans.find(p => p.id === planId && p.userId === token.userId);
+    if (!plan) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'Plan not found' }));
+      return;
+    }
+    if (!(plan as { linkedGoals?: string[] }).linkedGoals) (plan as { linkedGoals: string[] }).linkedGoals = [];
+    const linkedGoals = plan as { linkedGoals: string[] };
+    if (goalId && !linkedGoals.linkedGoals.includes(goalId)) {
+      linkedGoals.linkedGoals.push(goalId);
+    }
+    vercelRes.status(200).send(JSON.stringify({ linkedGoals: linkedGoals.linkedGoals }));
+    return;
+  }
+
+  if (url.match(/^\/api\/plans\/[^/]+\/link-goal\/[^/]+$/) && method === 'DELETE') {
+    const planId = url.split('/')[3];
+    const goalIdToRemove = url.split('/')[5];
+    const plan = db.plans.find(p => p.id === planId && p.userId === token.userId);
+    if (!plan || !(plan as { linkedGoals?: string[] }).linkedGoals) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'Plan not found' }));
+      return;
+    }
+    const linkedGoals = plan as { linkedGoals: string[] };
+    linkedGoals.linkedGoals = linkedGoals.linkedGoals.filter(id => id !== goalIdToRemove);
+    vercelRes.status(200).send(JSON.stringify({ linkedGoals: linkedGoals.linkedGoals }));
+    return;
+  }
+
+  if (url.match(/^\/api\/plans\/[^/]+\/create-budgets-from-milestones$/) && method === 'POST') {
+    const planId = url.split('/')[3];
+    const plan = db.plans.find(p => p.id === planId && p.userId === token.userId);
+    if (!plan || !(plan as { milestones?: unknown[] }).milestones || !(plan as { milestones: unknown[] }).milestones.length) {
+      vercelRes.status(400).send(JSON.stringify({ message: 'No milestones found' }));
+      return;
+    }
+    const milestones = plan as { milestones: Array<{ targetAmount: number; targetDate: string }> };
+    const createdBudgets = [];
+    for (const milestone of milestones.milestones) {
+      if (milestone.targetAmount > 0) {
+        const newBudget = {
+          id: generateId('budgets'),
+          userId: token.userId,
+          categoryId: '1',
+          amount: milestone.targetAmount,
+          spent: 0,
+          period: 'monthly',
+          startDate: milestone.targetDate,
+          endDate: milestone.targetDate
+        };
+        db.budgets.push(newBudget);
+        createdBudgets.push(newBudget);
+      }
+    }
+    vercelRes.status(201).send(JSON.stringify({ message: 'Budgets created successfully', budgets: createdBudgets }));
     return;
   }
 
@@ -701,6 +1020,103 @@ export default async function handler(req: unknown, res: unknown) {
     return;
   }
 
+  if (url === '/api/ai/ask' && method === 'POST') {
+    const { question } = (vercelReq.body as { question?: string }) || {};
+    if (!question) {
+      vercelRes.status(400).send(JSON.stringify({ message: 'question required' }));
+      return;
+    }
+    let answer = 'Based on your financial data, ';
+    if (question.toLowerCase().includes('saving')) {
+      answer += 'I recommend focusing on your emergency fund first. Consider allocating 20% of your income to savings.';
+    } else if (question.toLowerCase().includes('budget')) {
+      answer += 'Your budget looks balanced. The 50/30/20 rule suggests 50% needs, 30% wants, 20% savings.';
+    } else if (question.toLowerCase().includes('invest')) {
+      answer += 'For long-term investments, consider a diversified portfolio with index funds and some bonds.';
+    } else {
+      answer += 'keep up the good work with tracking your expenses. Consistency is key to financial health.';
+    }
+    vercelRes.status(200).send(JSON.stringify({ answer }));
+    return;
+  }
+
+  if (url === '/api/ai/suggestions' && method === 'GET') {
+    const suggestions = [
+      { id: '1', type: 'BUDGET', title: 'Reduce Food Expenses', description: 'Your food spending is 15% above average. Consider meal planning.', potentialSavings: 300000, priority: 'HIGH', icon: 'utensils', actionLabel: 'Adjust Budget' },
+      { id: '2', type: 'SAVINGS', title: 'Automate Savings', description: 'Set up automatic transfer to savings account on payday.', potentialSavings: 500000, priority: 'MEDIUM', icon: 'piggy-bank', actionLabel: 'Setup Auto-Save' },
+      { id: '3', type: 'EXPENSE_REDUCTION', title: 'Cancel Unused Subscriptions', description: 'You have 2 streaming subscriptions that are rarely used.', potentialSavings: 150000, priority: 'LOW', icon: 'x-circle', actionLabel: 'Review Subscriptions' }
+    ];
+    vercelRes.status(200).send(JSON.stringify({ suggestions }));
+    return;
+  }
+
+  if (url === '/api/ai/advice' && method === 'GET') {
+    const accounts = db.accounts.filter(a => a.userId === token.userId);
+    const totalBalance = accounts.reduce((sum, a) => sum + a.balance, 0);
+    let advice = '';
+    if (totalBalance < 1000000) {
+      advice = 'Your total balance is low. Focus on building an emergency fund of 3-6 months of expenses before investing.';
+    } else if (totalBalance < 10000000) {
+      advice = 'Good financial position! Consider diversifying your accounts and starting to invest for long-term goals.';
+    } else {
+      advice = 'Excellent! You have a strong financial foundation. Focus on wealth preservation and strategic investments.';
+    }
+    vercelRes.status(200).send(JSON.stringify({ advice }));
+    return;
+  }
+
+  if (url.match(/^\/api\/ai\/analyze-spending/) && method === 'GET') {
+    const transactions = db.transactions.filter(t => t.userId === token.userId);
+    const expenses = transactions.filter(t => t.type === 'EXPENSE');
+    const totalExpense = expenses.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    const categoryTotals: Record<string, number> = {};
+    expenses.forEach(t => {
+      const cat = db.categories.find(c => c.id === t.categoryId);
+      const name = cat?.name || 'Other';
+      categoryTotals[name] = (categoryTotals[name] || 0) + Math.abs(t.amount);
+    });
+    const analysis = {
+      totalSpending: totalExpense,
+      categoryBreakdown: Object.entries(categoryTotals).map(([name, amount]) => ({ name, amount, percentage: Math.round((amount / totalExpense) * 100) })),
+      averageDaily: Math.round(totalExpense / 30),
+      trend: 'stable'
+    };
+    vercelRes.status(200).send(JSON.stringify({ analysis }));
+    return;
+  }
+
+  if (url === '/api/ai/generate-plan-from-data' && method === 'POST') {
+    const accounts = db.accounts.filter(a => a.userId === token.userId);
+    const transactions = db.transactions.filter(t => t.userId === token.userId);
+    const totalBalance = accounts.reduce((sum, a) => sum + a.balance, 0);
+    const income = transactions.filter(t => t.type === 'INCOME').reduce((sum, t) => sum + t.amount, 0);
+    const expenses = transactions.filter(t => t.type === 'EXPENSE').reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    const generatedPlan = {
+      name: 'AI Generated Financial Plan',
+      description: 'Based on your spending patterns and current financial status',
+      startDate: '2026-05-01',
+      endDate: '2026-12-31',
+      status: 'ACTIVE',
+      milestones: [
+        { id: '1', title: 'Build Emergency Fund', description: 'Save 3 months of expenses', targetDate: '2026-07-31', targetAmount: expenses * 3, isCompleted: false, order: 0 },
+        { id: '2', title: 'Reduce High Interest Debt', description: 'Pay off credit cards', targetDate: '2026-09-30', targetAmount: 2000000, isCompleted: false, order: 1 },
+        { id: '3', title: 'Start Investment Portfolio', description: 'Begin monthly investments', targetDate: '2026-12-31', targetAmount: 5000000, isCompleted: false, order: 2 }
+      ]
+    };
+    const summary = {
+      totalBalance: String(totalBalance),
+      monthlyIncome: String(income),
+      monthlyExpense: String(expenses),
+      savings: String(income - expenses),
+      topExpenses: [
+        { category: 'Food', amount: 1500000 },
+        { category: 'Transport', amount: 500000 }
+      ]
+    };
+    vercelRes.status(200).send(JSON.stringify({ plan: generatedPlan, summary }));
+    return;
+  }
+
   // Report endpoint (mock)
   if (url === '/api/reports' && method === 'GET') {
     vercelRes.status(200).send(JSON.stringify({ 
@@ -709,6 +1125,126 @@ export default async function handler(req: unknown, res: unknown) {
       savings: 3500000,
       byCategory: []
     }));
+    return;
+  }
+
+  if (url.match(/^\/api\/reports\/monthly/) && method === 'GET') {
+    const urlParts = new URLSearchParams(url.split('?')[1]);
+    const year = parseInt(urlParts.get('year') || '2026');
+    const month = parseInt(urlParts.get('month') || '5');
+    const transactions = db.transactions.filter(t => t.userId === token.userId);
+    const income = transactions.filter(t => t.type === 'INCOME').reduce((sum, t) => sum + t.amount, 0);
+    const expenses = transactions.filter(t => t.type === 'EXPENSE').reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const report = {
+      period: { year, month, label: `${monthNames[month - 1]} ${year}` },
+      summary: { totalIncome: income, totalExpense: expenses, balance: income - expenses },
+      incomeByCategory: [
+        { name: 'Salary', amount: income, color: '#10B981' }
+      ],
+      expenseByCategory: [
+        { name: 'Food', amount: 1500000, color: '#F59E0B' },
+        { name: 'Transport', amount: 500000, color: '#3B82F6' }
+      ],
+      transactions: transactions.slice(0, 50)
+    };
+    vercelRes.status(200).send(JSON.stringify({ report }));
+    return;
+  }
+
+  if (url.match(/^\/api\/reports\/trends/) && method === 'GET') {
+    const urlParts = new URLSearchParams(url.split('?')[1]);
+    const months = parseInt(urlParts.get('months') || '6');
+    const trends = [];
+    for (let i = months - 1; i >= 0; i--) {
+      const month = new Date(2026, 4 - i, 1);
+      trends.push({
+        month: month.toLocaleString('default', { month: 'short' }),
+        year: month.getFullYear(),
+        income: 5000000 + Math.floor(Math.random() * 500000),
+        expense: 1500000 + Math.floor(Math.random() * 300000),
+        balance: 3500000 + Math.floor(Math.random() * 200000)
+      });
+    }
+    vercelRes.status(200).send(JSON.stringify({ trends }));
+    return;
+  }
+
+  if (url.match(/^\/api\/reports\/category-breakdown/) && method === 'GET') {
+    const transactions = db.transactions.filter(t => t.userId === token.userId && t.type === 'EXPENSE');
+    const total = transactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    const categoryTotals: Record<string, { amount: number; color: string }> = {};
+    transactions.forEach(t => {
+      const cat = db.categories.find(c => c.id === t.categoryId);
+      const name = cat?.name || 'Other';
+      if (!categoryTotals[name]) categoryTotals[name] = { amount: 0, color: cat?.color || '#888' };
+      categoryTotals[name].amount += Math.abs(t.amount);
+    });
+    const categories = Object.entries(categoryTotals).map(([name, data]) => ({
+      name,
+      amount: data.amount,
+      color: data.color,
+      percentage: Math.round((data.amount / total) * 100)
+    }));
+    vercelRes.status(200).send(JSON.stringify({ total, categories }));
+    return;
+  }
+
+  if (url === '/api/reports/net-worth' && method === 'GET') {
+    const accounts = db.accounts.filter(a => a.userId === token.userId);
+    const totalAssets = accounts.reduce((sum, a) => sum + a.balance, 0);
+    const netWorth = {
+      totalAssets,
+      totalLiabilities: 0,
+      investments: accounts.filter(a => a.type === 'INVESTMENT').reduce((sum, a) => sum + a.balance, 0),
+      netWorth: totalAssets
+    };
+    vercelRes.status(200).send(JSON.stringify(netWorth));
+    return;
+  }
+
+  if (url.match(/^\/api\/reports\/cash-flow/) && method === 'GET') {
+    const transactions = db.transactions.filter(t => t.userId === token.userId);
+    const dailyFlow: Record<string, { income: number; expense: number }> = {};
+    transactions.forEach(t => {
+      const date = t.date;
+      if (!dailyFlow[date]) dailyFlow[date] = { income: 0, expense: 0 };
+      if (t.type === 'INCOME') dailyFlow[date].income += t.amount;
+      else dailyFlow[date].expense += Math.abs(t.amount);
+    });
+    const result = Object.entries(dailyFlow).map(([date, data]) => ({
+      date,
+      income: data.income,
+      expense: data.expense,
+      net: data.income - data.expense
+    })).sort((a, b) => a.date.localeCompare(b.date));
+    vercelRes.status(200).send(JSON.stringify({ dailyFlow: result }));
+    return;
+  }
+
+  if (url.match(/^\/api\/reports\/export\/transactions/) && method === 'GET') {
+    const transactions = db.transactions.filter(t => t.userId === token.userId);
+    const headers = 'Date,Description,Amount,Type,Category\n';
+    const rows = transactions.map(t => {
+      const cat = db.categories.find(c => c.id === t.categoryId);
+      return `${t.date},"${t.description}",${t.amount},${t.type},${cat?.name || 'Other'}`;
+    }).join('\n');
+    vercelRes.setHeader('Content-Type', 'text/csv');
+    vercelRes.setHeader('Content-Disposition', 'attachment; filename=transactions-2026-05.csv');
+    vercelRes.send(headers + rows);
+    return;
+  }
+
+  // Notification delete endpoint
+  if (url.match(/^\/api\/notifications\/[^/]+$/) && method === 'DELETE') {
+    const id = url.split('/')[3];
+    const index = db.notifications.findIndex(n => n.id === id && n.userId === token.userId);
+    if (index === -1) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'Notification not found' }));
+      return;
+    }
+    db.notifications.splice(index, 1);
+    vercelRes.status(204).send('');
     return;
   }
 
