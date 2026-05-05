@@ -15,16 +15,18 @@ import { reportRoutes } from '../src/modules/report/routes.js';
 import { notificationRoutes } from '../src/modules/notification/routes.js';
 import { userRoutes } from '../src/modules/user/routes.js';
 
+const ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://financial-management-frontend.vercel.app',
+  'https://financial-management-frontend-ahmadfanani18.vercel.app'
+];
+
 const createApp = async () => {
   const fastify = Fastify({ logger: false });
 
   await fastify.register(cors, {
-    origin: [
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'https://financial-management-frontend.vercel.app',
-      'https://financial-management-frontend-*.vercel.app'
-    ],
+    origin: ALLOWED_ORIGINS,
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
     methods: ['GET', 'PUT', 'POST', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -59,12 +61,21 @@ export default async function handler(req: unknown, res: unknown) {
   const vercelReq = req as { method: string; url: string; headers: Record<string, string | string[] | undefined>; body: unknown };
   const vercelRes = res as { status: (code: number) => typeof vercelRes; setHeader: (key: string, value: string) => void; send: (data: string) => void };
 
-  console.log('Request:', vercelReq.method, vercelReq.url);
+  const origin = vercelReq.headers.origin;
+  if (ALLOWED_ORIGINS.includes(origin as string)) {
+    vercelRes.setHeader('Access-Control-Allow-Origin', origin as string);
+    vercelRes.setHeader('Access-Control-Allow-Credentials', 'true');
+    vercelRes.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    vercelRes.setHeader('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, PATCH, OPTIONS');
+  }
+
+  if (vercelReq.method === 'OPTIONS') {
+    vercelRes.status(204).send('');
+    return;
+  }
 
   if (!app) {
-    console.log('Creating Fastify app...');
     app = await createApp();
-    console.log('Fastify app created');
   }
 
   const reply = await app.handle({
