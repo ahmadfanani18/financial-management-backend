@@ -316,9 +316,11 @@ export default async function handler(req, res) {
     // PUT update transaction
     if (transactionMatch && method === 'PUT') {
       const body = parseBody(req.body);
+      const updateData = { ...body };
+      if (body.date) updateData.date = new Date(body.date).toISOString();
       const transaction = await db.transaction.update({
         where: { id: transactionMatch[1] },
-        data: body
+        data: updateData
       });
       res.status(200).send(JSON.stringify({ transaction }));
       return;
