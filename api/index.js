@@ -408,9 +408,9 @@ export default async function handler(req, res) {
     // GET budgets summary
     if (url === '/api/budgets/summary' && method === 'GET') {
       const budgets = await db.budget.findMany({ where: { userId: token.userId } });
-      const totalBudget = budgets.reduce((sum, b) => sum + b.amount, 0);
+      const totalBudget = budgets.reduce((sum, b) => sum + Number(b.amount), 0);
       const allTransactions = await db.transaction.findMany({ where: { userId: token.userId, type: 'EXPENSE' } });
-      const totalSpent = allTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+      const totalSpent = allTransactions.reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
       res.status(200).send(JSON.stringify({ totalBudget, totalSpent, remaining: totalBudget - totalSpent, budgetCount: budgets.length }));
       return;
     }
@@ -430,7 +430,11 @@ export default async function handler(req, res) {
     // PUT update budget
     if (budgetMatch && method === 'PUT') {
       const body = parseBody(req.body);
-      const budget = await db.budget.update({ where: { id: budgetMatch[1] }, data: body });
+      const updateData = { ...body };
+      if (body.startDate) updateData.startDate = new Date(body.startDate).toISOString();
+      if (body.endDate === '') updateData.endDate = null;
+      else if (body.endDate) updateData.endDate = new Date(body.endDate).toISOString();
+      const budget = await db.budget.update({ where: { id: budgetMatch[1] }, data: updateData });
       res.status(200).send(JSON.stringify({ budget }));
       return;
     }
