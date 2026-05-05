@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { registerHandler, loginHandler, meHandler } from './controller.js';
+import { registerHandler, loginHandler, meHandler, changePasswordHandler } from './controller.js';
 import { authenticate } from '../../middleware/auth.js';
 
 export async function authRoutes(fastify: FastifyInstance) {
@@ -61,4 +61,18 @@ export async function authRoutes(fastify: FastifyInstance) {
       },
     },
   }, meHandler);
+
+  fastify.put('/change-password', {
+    preHandler: [authenticate],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['currentPassword', 'newPassword'],
+        properties: {
+          currentPassword: { type: 'string', minLength: 6 },
+          newPassword: { type: 'string', minLength: 6 },
+        },
+      },
+    },
+  }, changePasswordHandler);
 }

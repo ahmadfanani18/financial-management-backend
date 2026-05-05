@@ -41,3 +41,17 @@ export async function meHandler(
   const user = await authService.getProfile(request.user.id);
   return reply.send({ user });
 }
+
+export async function changePasswordHandler(
+  request: FastifyRequest<{
+    Body: {
+      currentPassword: string;
+      newPassword: string;
+    };
+  }>,
+  reply: FastifyReply
+) {
+  const { currentPassword, newPassword } = request.body;
+  const result = await authService.changePassword(request.user.id, currentPassword, newPassword);
+  return reply.send(result);
+}
