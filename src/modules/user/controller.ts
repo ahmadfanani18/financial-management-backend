@@ -18,3 +18,28 @@ export async function updateProfileHandler(
   const user = await userService.updateProfile(request.user.id, input);
   return reply.send({ user });
 }
+
+export async function getNotificationPreferencesHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const prefs = await userService.getNotificationPreferences(request.user.id);
+  return { preferences: prefs };
+}
+
+export async function updateNotificationPreferencesHandler(
+  request: FastifyRequest<{
+    Body: {
+      budgetWarning?: boolean;
+      goalMilestone?: boolean;
+      planReminder?: boolean;
+      accountAlert?: boolean;
+      dailySummary?: boolean;
+      recurringTransaction?: boolean;
+    };
+  }>,
+  reply: FastifyReply
+) {
+  const prefs = await userService.updateNotificationPreferences(request.user.id, request.body);
+  return { preferences: prefs };
+}
