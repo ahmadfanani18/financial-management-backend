@@ -190,6 +190,16 @@ export default async function handler(req: unknown, res: unknown) {
     return;
   }
 
+  if (url === '/api/user/me' && method === 'GET') {
+    const user = users.find(u => u.id === token.userId);
+    if (!user) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'User not found' }));
+      return;
+    }
+    vercelRes.status(200).send(JSON.stringify({ id: user.id, email: user.email, name: user.name }));
+    return;
+  }
+
   if (url === '/api/user' && method === 'PUT') {
     const { name } = (vercelReq.body as { name?: string }) || {};
     const user = users.find(u => u.id === token.userId);
