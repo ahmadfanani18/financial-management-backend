@@ -1,10 +1,7 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createServer } from 'http';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import { config } from '../src/config/index.js';
-import { prisma } from '../src/config/prisma.js';
 import { authenticate } from '../src/middleware/auth.js';
 import { authRoutes } from '../src/modules/auth/routes.js';
 import { accountRoutes } from '../src/modules/account/routes.js';
@@ -18,12 +15,8 @@ import { reportRoutes } from '../src/modules/report/routes.js';
 import { notificationRoutes } from '../src/modules/notification/routes.js';
 import { userRoutes } from '../src/modules/user/routes.js';
 
-let fastify: Fastify.FastifyInstance | null = null;
-
-const getFastify = async () => {
-  if (fastify) return fastify;
-
-  fastify = Fastify({ logger: false });
+const createApp = async () => {
+  const fastify = Fastify({ logger: false });
 
   await fastify.register(cors, {
     origin: [
@@ -60,44 +53,30 @@ const getFastify = async () => {
   return fastify;
 };
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const fastify = await getFastify();
-  
-  const { method, url, headers } = req;
-  
-  return new Promise((resolve) => {
-    const requestHeaders: Record<string, string> = {};
-    for (const [key, value] of Object.entries(headers)) {
-      if (value) requestHeaders[key] = Array.isArray(value) ? value[0] : value;
-    }
+let app: ReturnType<typeof createApp> | null = null;
 
-    const simulatedReq = {
-      method: method || 'GET',
-      url: url || '/',
-      headers: requestHeaders,
-      body: req.body,
-    };
+export default async function handler(req: unknown, res: unknown) {
+  const vercelReq = req as { method: string; url: string; headers: Record<string, string | string[] | undefined>; body: unknown };
+  const vercelRes = res as { status: (code: number) => typeof vercelRes; setHeader: (key: string, value: string) => void; send: (data: string) => void };
 
-    const chunks: Buffer[] = [];
-    const simulatedRes = {
-      statusCode: 200,
-      headers: {} as Record<string, string>,
-      setHeader: (key: string, value: string) => { simulatedRes.headers[key] = value; },
-      getHeader: (key: string) => simulatedRes.headers[key],
-      removeHeader: () => {},
-      end: (data?: string) => {
-        res.status(simulatedRes.statusCode);
-        for (const [key, value] of Object.entries(simulatedRes.headers)) {
-          res.setHeader(key, value);
-        }
-        res.send(data || '');
-        resolve();
-      },
-      on: () => simulatedRes,
-      emit: () => simulatedRes,
-      removeListener: () => {},
-    };
+  if (!app) {
+    app = await createApp();
+  }
 
-    fastify.server.emit('request', simulatedReq as Parameters<typeof fastify.server.emit>[1], simulatedRes as Parameters<typeof fastify.server.emit>[2]);
+  const reply = await app.handle({
+    method: vercelReq.method || 'GET',
+    url: vercelReq.url || '/',
+    headers: vercelReq.headers,
+    body: vercelReq.body,
   });
+
+  vercelRes.status(reply.statusCode || 200);
+  
+  if (reply.headers) {
+    for (const [key, value] of Object.entries(reply.headers)) {
+      vercelRes.setHeader(key, value as string);
+    }
+  }
+  
+  vercelRes.send(reply.body as string || '');
 }
