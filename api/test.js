@@ -1,3 +1,3 @@
-module.exports = (req, res) => {
-  res.json({ message: 'Hello from Vercel!' });
+module.exports = async function(req, res) {
+  return res.status(200).json({ message: 'Hello from Vercel!' });
 };
