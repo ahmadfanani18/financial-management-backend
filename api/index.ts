@@ -1,13 +1,15 @@
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.DIRECT_URL || process.env.DATABASE_URL
-    }
-  }
-});
+const prisma = process.env.DATABASE_URL 
+  ? new PrismaClient({
+      datasources: {
+        db: {
+          url: process.env.DIRECT_URL || process.env.DATABASE_URL
+        }
+      }
+    })
+  : new PrismaClient();
 
 const ALLOWED_ORIGINS = [
   'http://localhost:3000',
@@ -35,20 +37,21 @@ export default async function handler(req: unknown, res: unknown) {
   const vercelReq = req as { method: string; url: string; headers: Record<string, string | string[] | undefined>; body: unknown };
   const vercelRes = res as { status: (code: number) => typeof vercelRes; setHeader: (key: string, value: string) => void; send: (data: string) => void };
 
-  const origin = vercelReq.headers.origin;
-  if (ALLOWED_ORIGINS.includes(origin as string)) {
-    vercelRes.setHeader('Access-Control-Allow-Origin', origin as string);
-    vercelRes.setHeader('Access-Control-Allow-Credentials', 'true');
-    vercelRes.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    vercelRes.setHeader('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, PATCH, OPTIONS');
-  }
+  try {
+    const origin = vercelReq.headers.origin;
+    if (ALLOWED_ORIGINS.includes(origin as string)) {
+      vercelRes.setHeader('Access-Control-Allow-Origin', origin as string);
+      vercelRes.setHeader('Access-Control-Allow-Credentials', 'true');
+      vercelRes.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      vercelRes.setHeader('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, PATCH, OPTIONS');
+    }
 
-  if (vercelReq.method === 'OPTIONS') {
-    vercelRes.status(204).send('');
-    return;
-  }
+    if (vercelReq.method === 'OPTIONS') {
+      vercelRes.status(204).send('');
+      return;
+    }
 
-  vercelRes.setHeader('Content-Type', 'application/json');
+    vercelRes.setHeader('Content-Type', 'application/json');
 
   const url = vercelReq.url?.split('?')[0] || '/';
   const method = vercelReq.method;
@@ -779,7 +782,13 @@ export default async function handler(req: unknown, res: unknown) {
     // 404 for unmatched routes
     vercelRes.status(404).send(JSON.stringify({ error: 'Not found', url, method }));
   } catch (err) {
-    console.error('Error:', err);
-    vercelRes.status(500).send(JSON.stringify({ error: 'Internal server error', message: String(err) }));
+    console.error('Handler Error:', err);
+    const origin = vercelReq.headers.origin;
+    if (ALLOWED_ORIGINS.includes(origin as string)) {
+      vercelRes.setHeader('Access-Control-Allow-Origin', origin as string);
+      vercelRes.setHeader('Access-Control-Allow-Credentials', 'true');
+      vercelRes.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    }
+    vercelRes.status(500).send(JSON.stringify({ error: 'Internal server error', message: String(err), stack: err instanceof Error ? err.stack : undefined }));
   }
 }
