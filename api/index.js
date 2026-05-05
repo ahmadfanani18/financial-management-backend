@@ -484,8 +484,8 @@ export default async function handler(req, res) {
     // GET goals overview
     if (url === '/api/goals/overview' && method === 'GET') {
       const goals = await db.goal.findMany({ where: { userId: token.userId } });
-      const totalTarget = goals.reduce((sum, g) => sum + g.targetAmount, 0);
-      const totalSaved = goals.reduce((sum, g) => sum + g.currentAmount, 0);
+      const totalTarget = goals.reduce((sum, g) => sum + Number(g.targetAmount), 0);
+      const totalSaved = goals.reduce((sum, g) => sum + Number(g.currentAmount), 0);
       res.status(200).send(JSON.stringify({ totalTarget, totalSaved, progress: totalTarget > 0 ? Math.round((totalSaved / totalTarget) * 100) : 0 }));
       return;
     }
@@ -505,7 +505,9 @@ export default async function handler(req, res) {
     // PUT update goal
     if (goalMatch && method === 'PUT') {
       const body = parseBody(req.body);
-      const goal = await db.goal.update({ where: { id: goalMatch[1] }, data: body });
+      const updateData = { ...body };
+      if (body.deadline) updateData.deadline = new Date(body.deadline).toISOString();
+      const goal = await db.goal.update({ where: { id: goalMatch[1] }, data: updateData });
       res.status(200).send(JSON.stringify({ goal }));
       return;
     }
@@ -534,6 +536,89 @@ export default async function handler(req, res) {
         data: { currentAmount: { increment: body.amount } }
       });
       res.status(200).send(JSON.stringify({ goal }));
+      return;
+    }
+
+    // PATCH goal lock toggle
+    const goalLockMatch = url.match(/^\/api\/goals\/([a-f0-9-]+)\/lock$/i);
+    if (goalLockMatch && method === 'PATCH') {
+      const goalId = goalLockMatch[1];
+      const goal = await db.goal.findFirst({ where: { id: goalId, userId: token.userId } });
+      if (!goal) {
+        res.status(404).send(JSON.stringify({ message: 'Goal not found' }));
+        return;
+      }
+      const updated = await db.goal.update({
+        where: { id: goalId },
+        data: { isLocked: !goal.isLocked }
+      });
+      res.status(200).send(JSON.stringify({ goal: updated }));
+      return;
+    }
+
+    // POST goal contribution with account (creates transaction)
+    const goalContribWithAccountMatch = url.match(/^\/api\/goals\/([a-f0-9-]+)\/contributions\/with-account$/i);
+    if (goalContribWithAccountMatch && method === 'POST') {
+      const body = parseBody(req.body);
+      const goalId = goalContribWithAccountMatch[1];
+      await db.goal.update({
+        where: { id: goalId },
+        data: { currentAmount: { increment: body.amount } }
+      });
+      await db.transaction.create({
+        data: {
+          userId: token.userId,
+          accountId: body.accountId,
+          categoryId: body.categoryId || null,
+          type: 'EXPENSE',
+          amount: body.amount,
+          description: body.note || 'Goal contribution',
+          date: body.date ? new Date(body.date).toISOString() : new Date().toISOString()
+        }
+      });
+      const goal = await db.goal.findUnique({ where: { id: goalId } });
+      res.status(200).send(JSON.stringify({ goal }));
+      return;
+    }
+
+    // DELETE goal with transaction refund
+    const goalWithTransactionMatch = url.match(/^\/api\/goals\/([a-f0-9-]+)\/with-transaction$/i);
+    if (goalWithTransactionMatch && method === 'DELETE') {
+      const body = parseBody(req.body);
+      const goalId = goalWithTransactionMatch[1];
+      const goal = await db.goal.findFirst({ where: { id: goalId, userId: token.userId } });
+      if (!goal) {
+        res.status(404).send(JSON.stringify({ message: 'Goal not found' }));
+        return;
+      }
+      if (body.accountId && goal.currentAmount > 0) {
+        await db.transaction.create({
+          data: {
+            userId: token.userId,
+            accountId: body.accountId,
+            type: 'INCOME',
+            amount: goal.currentAmount,
+            description: `Refund from goal: ${goal.name}`,
+            date: new Date().toISOString()
+          }
+        });
+      }
+      await db.goal.delete({ where: { id: goalId } });
+      res.status(204).send(JSON.stringify({ message: 'Deleted' }));
+      return;
+    }
+
+    // DELETE goal with refund
+    const goalWithRefundMatch = url.match(/^\/api\/goals\/([a-f0-9-]+)\/with-refund$/i);
+    if (goalWithRefundMatch && method === 'DELETE') {
+      const goalId = goalWithRefundMatch[1];
+      const goal = await db.goal.findFirst({ where: { id: goalId, userId: token.userId } });
+      if (!goal) {
+        res.status(404).send(JSON.stringify({ message: 'Goal not found' }));
+        return;
+      }
+      await db.goal.delete({ where: { id: goalId } });
+      res.status(204).send(JSON.stringify({ message: 'Deleted' }));
       return;
     }
 
