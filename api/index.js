@@ -575,6 +575,16 @@ export default async function handler(req, res) {
     if (goalContribWithAccountMatch && method === 'POST') {
       const body = parseBody(req.body);
       const goalId = goalContribWithAccountMatch[1];
+      await db.goalContribution.create({
+        data: {
+          goalId,
+          amount: body.amount,
+          date: body.date ? new Date(body.date).toISOString() : new Date().toISOString(),
+          note: body.note || null,
+          accountId: body.accountId || null,
+          categoryId: body.categoryId || null
+        }
+      });
       await db.goal.update({
         where: { id: goalId },
         data: { currentAmount: { increment: body.amount } }
