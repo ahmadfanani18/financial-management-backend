@@ -16,7 +16,7 @@ import { notificationRoutes } from '../src/modules/notification/routes.js';
 import { userRoutes } from '../src/modules/user/routes.js';
 
 const createApp = async () => {
-  const fastify = Fastify({ logger: false });
+  const fastify = Fastify({ logger: true });
 
   await fastify.register(cors, {
     origin: [
@@ -56,27 +56,35 @@ const createApp = async () => {
 let app: Awaited<ReturnType<typeof createApp>> | null = null;
 
 export default async function handler(req: unknown, res: unknown) {
-  const vercelReq = req as { method: string; url: string; headers: Record<string, string | string[] | undefined>; body: unknown };
-  const vercelRes = res as { status: (code: number) => typeof vercelRes; setHeader: (key: string, value: string) => void; send: (data: string) => void };
+  try {
+    const vercelReq = req as { method: string; url: string; headers: Record<string, string | string[] | undefined>; body: unknown };
+    const vercelRes = res as { status: (code: number) => typeof vercelRes; setHeader: (key: string, value: string) => void; send: (data: string) => void };
 
-  if (!app) {
-    app = await createApp();
-  }
+    console.log('Request:', vercelReq.method, vercelReq.url);
 
-  const reply = await app.handle({
-    method: vercelReq.method || 'GET',
-    url: vercelReq.url || '/',
-    headers: vercelReq.headers,
-    body: vercelReq.body,
-  });
-
-  vercelRes.status(reply.statusCode || 200);
-  
-  if (reply.headers) {
-    for (const [key, value] of Object.entries(reply.headers)) {
-      vercelRes.setHeader(key, value as string);
+    if (!app) {
+      app = await createApp();
     }
+
+    const reply = await app.handle({
+      method: vercelReq.method || 'GET',
+      url: vercelReq.url || '/',
+      headers: vercelReq.headers,
+      body: vercelReq.body,
+    });
+
+    vercelRes.status(reply.statusCode || 200);
+    
+    if (reply.headers) {
+      for (const [key, value] of Object.entries(reply.headers)) {
+        vercelRes.setHeader(key, value as string);
+      }
+    }
+    
+    vercelRes.send(reply.body as string || '');
+  } catch (err) {
+    console.error('Error:', err);
+    const vercelRes = res as { status: (code: number) => typeof vercelRes; send: (data: string) => void };
+    vercelRes.status(500).send('Error: ' + String(err));
   }
-  
-  vercelRes.send(reply.body as string || '');
 }
