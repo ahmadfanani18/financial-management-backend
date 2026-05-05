@@ -43,15 +43,10 @@ export async function meHandler(
 }
 
 export async function changePasswordHandler(
-  request: FastifyRequest<{
-    Body: {
-      currentPassword: string;
-      newPassword: string;
-    };
-  }>,
+  request: FastifyRequest,
   reply: FastifyReply
 ) {
-  const { currentPassword, newPassword } = request.body;
+  const { currentPassword, newPassword } = request.body as { currentPassword: string; newPassword: string };
   const result = await authService.changePassword(request.user.id, currentPassword, newPassword);
   return reply.send(result);
 }
