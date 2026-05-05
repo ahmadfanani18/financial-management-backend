@@ -726,29 +726,6 @@ export default async function handler(req, res) {
       return;
     }
 
-    // PUT update milestone
-    const singleMilestone = url.match(/^\/api\/plans\/([a-f0-9-]+)\/milestones\/([a-f0-9-]+)$/i);
-    if (singleMilestone && method === 'PUT') {
-      const body = parseBody(req.body);
-      const updateData: any = {};
-      if (body.title) updateData.title = body.title;
-      if (body.description !== undefined) updateData.description = body.description || null;
-      if (body.targetDate) updateData.targetDate = new Date(body.targetDate).toISOString();
-      if (body.targetAmount !== undefined) updateData.targetAmount = body.targetAmount ? Number(body.targetAmount) : null;
-      if (body.goalId !== undefined) updateData.goalId = body.goalId || null;
-      const milestone = await db.planMilestone.update({ where: { id: singleMilestone[2] }, data: updateData });
-      res.status(200).send(JSON.stringify({ milestone }));
-      return;
-    }
-
-    // PATCH complete milestone
-    const completeMilestone = url.match(/^\/api\/plans\/([a-f0-9-]+)\/milestones\/([a-f0-9-]+)\/complete$/i);
-    if (completeMilestone && method === 'PATCH') {
-      const milestone = await db.planMilestone.update({ where: { id: completeMilestone[2] }, data: { isCompleted: true, completedAt: new Date().toISOString() } });
-      res.status(200).send(JSON.stringify({ milestone }));
-      return;
-    }
-
     // DELETE plan
     if (planMatch && method === 'DELETE') {
       await db.plan.delete({ where: { id: planMatch[1] } });
