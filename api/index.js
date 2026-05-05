@@ -352,8 +352,8 @@ export default async function handler(req, res) {
       const where = { userId: token.userId };
       if (startDate || endDate) {
         where.date = {};
-        if (startDate) where.date.gte = startDate;
-        if (endDate) where.date.lte = endDate;
+        if (startDate) where.date.gte = new Date(startDate).toISOString();
+        if (endDate) where.date.lte = new Date(endDate).toISOString();
       }
       const transactions = await db.transaction.findMany({ where });
       const income = transactions.filter(t => t.type === 'INCOME').reduce((sum, t) => sum + t.amount, 0);
@@ -366,13 +366,16 @@ export default async function handler(req, res) {
     // GET all budgets
     if (url === '/api/budgets' && method === 'GET') {
       const budgets = await db.budget.findMany({ where: { userId: token.userId }, include: { category: true } });
-      const budgetsWithSpent = await Promise.all(budgets.map(async (b) => {
-        const transactions = await db.transaction.findMany({
-          where: { userId: token.userId, categoryId: b.categoryId, type: 'EXPENSE' }
-        });
-        const spent = transactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+      const allExpenses = await db.transaction.groupBy({
+        by: ['categoryId'],
+        where: { userId: token.userId, type: 'EXPENSE' },
+        _sum: { amount: true }
+      });
+      const expenseByCategory = Object.fromEntries(allExpenses.map(e => [e.categoryId, Math.abs(e._sum.amount || 0)]));
+      const budgetsWithSpent = budgets.map(b => {
+        const spent = expenseByCategory[b.categoryId] || 0;
         return { ...b, spent, remaining: b.amount - spent, percentage: b.amount > 0 ? Math.round((spent / b.amount) * 100) : 0 };
-      }));
+      });
       res.status(200).send(JSON.stringify({ budgets: budgetsWithSpent }));
       return;
     }
