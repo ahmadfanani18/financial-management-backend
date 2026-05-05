@@ -1,8 +1,5 @@
 {
   "buildCommand": "pnpm run build",
   "installCommand": "pnpm install",
-  "framework": null,
-  "typescript": {
-    "ignoreBuildErrors": true
-  }
+  "framework": null
 }
