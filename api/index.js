@@ -686,8 +686,43 @@ export default async function handler(req, res) {
     // PUT update plan
     if (planMatch && method === 'PUT') {
       const body = parseBody(req.body);
-      const plan = await db.plan.update({ where: { id: planMatch[1] }, data: body });
+      const updateData = { ...body };
+      if (body.startDate) updateData.startDate = new Date(body.startDate).toISOString();
+      if (body.endDate === '') updateData.endDate = null;
+      else if (body.endDate) updateData.endDate = new Date(body.endDate).toISOString();
+      const plan = await db.plan.update({ where: { id: planMatch[1] }, data: updateData });
       res.status(200).send(JSON.stringify({ plan }));
+      return;
+    }
+
+    // GET plan milestones
+    const planMilestonesMatch = url.match(/^\/api\/plans\/([a-f0-9-]+)\/milestones$/i);
+    if (planMilestonesMatch && method === 'GET') {
+      const planId = planMilestonesMatch[1];
+      const milestones = await db.planMilestone.findMany({
+        where: { planId },
+        orderBy: { order: 'asc' }
+      });
+      res.status(200).send(JSON.stringify({ milestones }));
+      return;
+    }
+
+    // POST create milestone
+    if (planMilestonesMatch && method === 'POST') {
+      const body = parseBody(req.body);
+      const planId = planMilestonesMatch[1];
+      const existingMilestones = await db.planMilestone.findMany({ where: { planId } });
+      const milestone = await db.planMilestone.create({
+        data: {
+          planId,
+          title: body.title,
+          description: body.description || null,
+          targetDate: body.targetDate ? new Date(body.targetDate).toISOString() : null,
+          targetAmount: body.targetAmount ? Number(body.targetAmount) : null,
+          order: existingMilestones.length
+        }
+      });
+      res.status(201).send(JSON.stringify({ milestone }));
       return;
     }
 
