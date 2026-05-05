@@ -30,7 +30,10 @@ const db = {
     { id: '1', userId: 1, name: 'Emergency Fund', targetAmount: 10000000, currentAmount: 5000000, deadline: '2026-12-31', icon: 'target', color: '#10B981', locked: false }
   ],
   plans: [
-    { id: '1', userId: 1, name: '2026 Financial Plan', description: 'Yearly financial goals', status: 'active' }
+    { id: '1', userId: 1, name: '2026 Financial Plan', description: 'Yearly financial goals', status: 'active', milestones: [
+      { id: '1', title: 'Build Emergency Fund', description: 'Save 3 months expenses', targetDate: '2026-06-30', targetAmount: 5000000, goalId: null, isCompleted: false, completedAt: null, order: 0 },
+      { id: '2', title: 'Invest in Index Funds', description: 'Start monthly investment', targetDate: '2026-09-30', targetAmount: 10000000, goalId: null, isCompleted: false, completedAt: null, order: 1 }
+    ] }
   ],
   notifications: [
     { id: '1', userId: 1, title: 'Welcome', message: 'Welcome to Financial Management!', read: false, createdAt: '2026-05-01' }
@@ -738,6 +741,18 @@ export default async function handler(req: unknown, res: unknown) {
     return;
   }
 
+  if (url.match(/^\/api\/plans\/[^/]+\/milestones$/) && method === 'GET') {
+    const planId = url.split('/')[3];
+    const plan = db.plans.find(p => p.id === planId && p.userId === token.userId);
+    if (!plan) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'Plan not found' }));
+      return;
+    }
+    const milestones = (plan as { milestones?: unknown[] }).milestones || [];
+    vercelRes.status(200).send(JSON.stringify({ milestones }));
+    return;
+  }
+
   if (url.match(/^\/api\/plans\/[^/]+\/milestones$/) && method === 'POST') {
     const planId = url.split('/')[3];
     const plan = db.plans.find(p => p.id === planId && p.userId === token.userId);
@@ -849,6 +864,18 @@ export default async function handler(req: unknown, res: unknown) {
     return;
   }
 
+  if (url.match(/^\/api\/plans\/[^/]+\/link-budget$/) && method === 'GET') {
+    const planId = url.split('/')[3];
+    const plan = db.plans.find(p => p.id === planId && p.userId === token.userId);
+    if (!plan) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'Plan not found' }));
+      return;
+    }
+    const linkedBudgets = (plan as { linkedBudgets?: string[] }).linkedBudgets || [];
+    vercelRes.status(200).send(JSON.stringify({ linkedBudgets }));
+    return;
+  }
+
   if (url.match(/^\/api\/plans\/[^/]+\/link-budget$/) && method === 'POST') {
     const planId = url.split('/')[3];
     const { budgetId } = (vercelReq.body as { budgetId?: string }) || {};
@@ -877,6 +904,18 @@ export default async function handler(req: unknown, res: unknown) {
     const linkedBudgets = plan as { linkedBudgets: string[] };
     linkedBudgets.linkedBudgets = linkedBudgets.linkedBudgets.filter(id => id !== budgetIdToRemove);
     vercelRes.status(200).send(JSON.stringify({ linkedBudgets: linkedBudgets.linkedBudgets }));
+    return;
+  }
+
+  if (url.match(/^\/api\/plans\/[^/]+\/link-goal$/) && method === 'GET') {
+    const planId = url.split('/')[3];
+    const plan = db.plans.find(p => p.id === planId && p.userId === token.userId);
+    if (!plan) {
+      vercelRes.status(404).send(JSON.stringify({ message: 'Plan not found' }));
+      return;
+    }
+    const linkedGoals = (plan as { linkedGoals?: string[] }).linkedGoals || [];
+    vercelRes.status(200).send(JSON.stringify({ linkedGoals }));
     return;
   }
 
