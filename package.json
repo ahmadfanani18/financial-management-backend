@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "prisma generate",
+    "postinstall": "prisma generate",
     "start": "node --import tsx src/index.ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
