@@ -11,6 +11,6 @@
       "dest": "/api/index.js"
     }
   ],
-  "buildCommand": "npx prisma generate",
+  "buildCommand": "npm run db:generate",
   "installCommand": "npm install"
 }
