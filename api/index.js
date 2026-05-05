@@ -523,7 +523,11 @@ export default async function handler(req, res) {
     const goalContributionsMatch = url.match(/^\/api\/goals\/([a-f0-9-]+)\/contributions$/i);
     if (goalContributionsMatch && method === 'GET') {
       const goalId = goalContributionsMatch[1];
-      res.status(200).send(JSON.stringify({ contributions: [] }));
+      const contributions = await db.goalContribution.findMany({
+        where: { goalId },
+        orderBy: { createdAt: 'desc' }
+      });
+      res.status(200).send(JSON.stringify({ contributions }));
       return;
     }
 
@@ -531,6 +535,16 @@ export default async function handler(req, res) {
     if (goalContributionsMatch && method === 'POST') {
       const body = parseBody(req.body);
       const goalId = goalContributionsMatch[1];
+      await db.goalContribution.create({
+        data: {
+          goalId,
+          amount: body.amount,
+          date: body.date ? new Date(body.date).toISOString() : new Date().toISOString(),
+          note: body.note || null,
+          accountId: body.accountId || null,
+          categoryId: body.categoryId || null
+        }
+      });
       const goal = await db.goal.update({
         where: { id: goalId },
         data: { currentAmount: { increment: body.amount } }
