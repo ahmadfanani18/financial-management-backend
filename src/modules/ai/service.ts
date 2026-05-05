@@ -257,7 +257,7 @@ export class AIService {
     const endDate = new Date();
     endDate.setFullYear(endDate.getFullYear() + 1);
 
-    const milestones = [];
+    const milestones: Array<{title: string; description: string; targetDate: Date; targetAmount: number}> = [];
 
     const emergencyFundTarget = monthlyExpense * 6;
     const incomePercent = monthlyIncome > 0 ? Math.round((emergencyFundTarget / monthlyIncome) * 100) : 0;
