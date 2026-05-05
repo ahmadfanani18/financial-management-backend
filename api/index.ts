@@ -1,19 +1,8 @@
-import Fastify from 'fastify';
-import cors from '@fastify/cors';
-import jwt from '@fastify/jwt';
-import { config } from '../src/config/index.js';
-import { authenticate } from '../src/middleware/auth.js';
-import { authRoutes } from '../src/modules/auth/routes.js';
-import { accountRoutes } from '../src/modules/account/routes.js';
-import { categoryRoutes } from '../src/modules/category/routes.js';
-import { transactionRoutes } from '../src/modules/transaction/routes.js';
-import { budgetRoutes } from '../src/modules/budget/routes.js';
-import { goalRoutes } from '../src/modules/goal/routes.js';
-import { planRoutes } from '../src/modules/plan/routes.js';
-import { aiRoutes } from '../src/modules/ai/routes.js';
-import { reportRoutes } from '../src/modules/report/routes.js';
-import { notificationRoutes } from '../src/modules/notification/routes.js';
-import { userRoutes } from '../src/modules/user/routes.js';
+import 'dotenv/config';
+import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+
+const prisma = new PrismaClient();
 
 const ALLOWED_ORIGINS = [
   'http://localhost:3000',
@@ -21,40 +10,48 @@ const ALLOWED_ORIGINS = [
   'https://financial-management-frontend.vercel.app'
 ];
 
-const createApp = async () => {
-  const fastify = Fastify({ logger: false });
+const JWT_SECRET = process.env.JWT_SECRET || 'default-secret';
 
-  await fastify.register(cors, {
-    origin: ALLOWED_ORIGINS,
-    credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    methods: ['GET', 'PUT', 'POST', 'DELETE', 'PATCH', 'OPTIONS'],
+function createToken(payload: object): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const payloadEncoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const signature = 'simulated-signature';
+  return `${header}.${payloadEncoded}.${signature}`;
+}
+
+async function handleAuthLogin(req: { body: { email?: string; password?: string } }) {
+  const { email, password } = req.body || {};
+  if (!email || !password) {
+    return { statusCode: 400, body: JSON.stringify({ message: 'Email and password required' }) };
+  }
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) {
+    return { statusCode: 401, body: JSON.stringify({ message: 'Invalid credentials' }) };
+  }
+  const valid = await bcrypt.compare(password, user.password);
+  if (!valid) {
+    return { statusCode: 401, body: JSON.stringify({ message: 'Invalid credentials' }) };
+  }
+  const token = createToken({ userId: user.id, email: user.email });
+  return { statusCode: 200, body: JSON.stringify({ token, user: { id: user.id, email: user.email, name: user.name } }) };
+}
+
+async function handleAuthRegister(req: { body: { email?: string; password?: string; name?: string } }) {
+  const { email, password, name } = req.body || {};
+  if (!email || !password) {
+    return { statusCode: 400, body: JSON.stringify({ message: 'Email and password required' }) };
+  }
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) {
+    return { statusCode: 400, body: JSON.stringify({ message: 'Email already exists' }) };
+  }
+  const hashedPassword = await bcrypt.hash(password, 10);
+  const user = await prisma.user.create({
+    data: { email, password: hashedPassword, name: name || email.split('@')[0] }
   });
-
-  await fastify.register(jwt, {
-    secret: config.jwtSecret,
-  });
-
-  fastify.decorate('authenticate', authenticate);
-
-  fastify.get('/api/health', async () => ({ status: 'ok' }));
-
-  await fastify.register(authRoutes, { prefix: '/api/auth' });
-  await fastify.register(accountRoutes, { prefix: '/api/accounts' });
-  await fastify.register(categoryRoutes, { prefix: '/api/categories' });
-  await fastify.register(transactionRoutes, { prefix: '/api/transactions' });
-  await fastify.register(budgetRoutes, { prefix: '/api/budgets' });
-  await fastify.register(goalRoutes, { prefix: '/api/goals' });
-  await fastify.register(planRoutes, { prefix: '/api/plans' });
-  await fastify.register(aiRoutes, { prefix: '/api/ai' });
-  await fastify.register(reportRoutes, { prefix: '/api/reports' });
-  await fastify.register(notificationRoutes, { prefix: '/api/notifications' });
-  await fastify.register(userRoutes, { prefix: '/api/user' });
-
-  return fastify;
-};
-
-let app: Awaited<ReturnType<typeof createApp>> | null = null;
+  const token = createToken({ userId: user.id, email: user.email });
+  return { statusCode: 201, body: JSON.stringify({ token, user: { id: user.id, email: user.email, name: user.name } }) };
+}
 
 export default async function handler(req: unknown, res: unknown) {
   const vercelReq = req as { method: string; url: string; headers: Record<string, string | string[] | undefined>; body: unknown };
@@ -73,24 +70,31 @@ export default async function handler(req: unknown, res: unknown) {
     return;
   }
 
-  if (!app) {
-    app = await createApp();
-  }
+  vercelRes.setHeader('Content-Type', 'application/json');
 
-  const reply = await app.handle({
-    method: vercelReq.method || 'GET',
-    url: vercelReq.url || '/',
-    headers: vercelReq.headers,
-    body: vercelReq.body,
-  });
-
-  vercelRes.status(reply.statusCode || 200);
+  const url = vercelReq.url || '/';
   
-  if (reply.headers) {
-    for (const [key, value] of Object.entries(reply.headers)) {
-      vercelRes.setHeader(key, value as string);
+  try {
+    if (url === '/api/health') {
+      vercelRes.status(200).send(JSON.stringify({ status: 'ok' }));
+      return;
     }
+    
+    if (url === '/api/auth/login' && vercelReq.method === 'POST') {
+      const result = await handleAuthLogin(vercelReq as { body: { email?: string; password?: string } });
+      vercelRes.status(result.statusCode).send(result.body);
+      return;
+    }
+    
+    if (url === '/api/auth/register' && vercelReq.method === 'POST') {
+      const result = await handleAuthRegister(vercelReq as { body: { email?: string; password?: string; name?: string } });
+      vercelRes.status(result.statusCode).send(result.body);
+      return;
+    }
+    
+    vercelRes.status(404).send(JSON.stringify({ error: 'Not found', url }));
+  } catch (err) {
+    console.error('Error:', err);
+    vercelRes.status(500).send(JSON.stringify({ error: 'Internal server error' }));
   }
-  
-  vercelRes.send(reply.body as string || '');
 }
