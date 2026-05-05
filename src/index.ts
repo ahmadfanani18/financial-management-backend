@@ -16,6 +16,7 @@ import { planRoutes } from './modules/plan/routes.js';
 import { aiRoutes } from './modules/ai/routes.js';
 import { reportRoutes } from './modules/report/routes.js';
 import { notificationRoutes } from './modules/notification/routes.js';
+import { userRoutes } from './modules/user/routes.js';
 
 const fastify = Fastify({
   logger: true,
@@ -67,6 +68,7 @@ await fastify.register(planRoutes, { prefix: '/api/plans' });
 await fastify.register(aiRoutes, { prefix: '/api/ai' });
 await fastify.register(reportRoutes, { prefix: '/api/reports' });
 await fastify.register(notificationRoutes, { prefix: '/api/notifications' });
+await fastify.register(userRoutes, { prefix: '/api/user' });
 
 fastify.addHook('onClose', async () => {
   await prisma.$disconnect();
