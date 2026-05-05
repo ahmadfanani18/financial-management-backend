@@ -23,8 +23,11 @@ const fastify = Fastify({
 });
 
 await fastify.register(cors, {
-  origin: true,
+  origin: '*',
   credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Content-Length'],
+  methods: ['GET', 'PUT', 'POST', 'DELETE', 'PATCH', 'OPTIONS'],
 });
 
 await fastify.register(swagger, {
