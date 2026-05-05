@@ -290,7 +290,7 @@ export default async function handler(req, res) {
           type: body.type || 'EXPENSE',
           amount: body.amount,
           description: body.description || '',
-          date: body.date || new Date().toISOString(),
+          date: body.date ? new Date(body.date).toISOString() : new Date().toISOString(),
           fromAccountId: body.fromAccountId,
           toAccountId: body.toAccountId,
           isRecurring: body.isRecurring || false
@@ -386,7 +386,7 @@ export default async function handler(req, res) {
           categoryId: body.categoryId,
           amount: body.amount,
           period: body.period || 'MONTHLY',
-          startDate: body.startDate || new Date().toISOString(),
+          startDate: body.startDate ? new Date(body.startDate).toISOString() : new Date().toISOString(),
           endDate: body.endDate,
           warningThreshold: body.warningThreshold || 80,
           isActive: body.isActive !== false
@@ -458,7 +458,7 @@ export default async function handler(req, res) {
           name: body.name,
           targetAmount: body.targetAmount,
           currentAmount: body.currentAmount || 0,
-          deadline: body.deadline,
+          deadline: body.deadline ? new Date(body.deadline).toISOString() : new Date().toISOString(),
           icon: body.icon || 'target',
           color: body.color || '#10B981',
           status: 'ACTIVE',
@@ -541,8 +541,8 @@ export default async function handler(req, res) {
           userId: token.userId,
           name: body.name,
           description: body.description,
-          startDate: body.startDate,
-          endDate: body.endDate,
+          startDate: body.startDate ? new Date(body.startDate).toISOString() : new Date().toISOString(),
+          endDate: body.endDate ? new Date(body.endDate).toISOString() : null,
           status: 'ACTIVE'
         }
       });
