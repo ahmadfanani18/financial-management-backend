@@ -23,10 +23,14 @@ const fastify = Fastify({
 });
 
 await fastify.register(cors, {
-  origin: '*',
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'https://financial-management-frontend.vercel.app',
+    'https://financial-management-frontend-*.vercel.app'
+  ],
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization'],
-  exposedHeaders: ['Content-Length'],
   methods: ['GET', 'PUT', 'POST', 'DELETE', 'PATCH', 'OPTIONS'],
 });
 
