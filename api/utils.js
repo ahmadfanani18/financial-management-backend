@@ -1,0 +1,47 @@
+const ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://financial-management-frontend.vercel.app',
+  'https://financial-management-frontend-seven.vercel.app'
+];
+
+function simpleToken(userId, email) {
+  return Buffer.from(JSON.stringify({ userId, email })).toString('base64');
+}
+
+function parseToken(authHeader) {
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+  try {
+    return JSON.parse(Buffer.from(authHeader.slice(7), 'base64').toString());
+  } catch {
+    return null;
+  }
+}
+
+let prisma = null;
+
+async function getPrisma() {
+  if (!prisma) {
+    const { PrismaClient } = await import('@prisma/client');
+    const databaseUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
+    prisma = new PrismaClient({
+      datasources: databaseUrl ? { db: { url: databaseUrl } } : undefined
+    });
+  }
+  return prisma;
+}
+
+function parseBody(body) {
+  return typeof body === 'string' ? JSON.parse(body) : body;
+}
+
+function setupCors(res, origin) {
+  if (ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, PATCH, OPTIONS');
+  }
+}
+
+export { simpleToken, parseToken, getPrisma, parseBody, setupCors, ALLOWED_ORIGINS };
