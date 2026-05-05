@@ -10,5 +10,7 @@
       "src": "/(.*)",
       "dest": "/api/index.js"
     }
-  ]
+  ],
+  "buildCommand": "npx prisma generate",
+  "installCommand": "npm install"
 }
