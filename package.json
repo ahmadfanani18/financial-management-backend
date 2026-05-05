@@ -4,7 +4,6 @@
   "engines": {
     "node": ">=18"
   },
-  "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "prisma generate",
