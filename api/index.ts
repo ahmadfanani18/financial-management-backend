@@ -1,56 +1,15 @@
-import 'dotenv/config';
-import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
-
-const prisma = new PrismaClient();
-
 const ALLOWED_ORIGINS = [
   'http://localhost:3000',
   'http://localhost:3001',
   'https://financial-management-frontend.vercel.app'
 ];
 
-const JWT_SECRET = process.env.JWT_SECRET || 'default-secret';
+const users: Array<{ id: number; email: string; password: string; name: string }> = [
+  { id: 1, email: 'test@test.com', password: '$2a$10$fakehash', name: 'Test User' }
+];
 
-function createToken(payload: object): string {
-  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-  const payloadEncoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const signature = 'simulated-signature';
-  return `${header}.${payloadEncoded}.${signature}`;
-}
-
-async function handleAuthLogin(req: { body: { email?: string; password?: string } }) {
-  const { email, password } = req.body || {};
-  if (!email || !password) {
-    return { statusCode: 400, body: JSON.stringify({ message: 'Email and password required' }) };
-  }
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) {
-    return { statusCode: 401, body: JSON.stringify({ message: 'Invalid credentials' }) };
-  }
-  const valid = await bcrypt.compare(password, user.password);
-  if (!valid) {
-    return { statusCode: 401, body: JSON.stringify({ message: 'Invalid credentials' }) };
-  }
-  const token = createToken({ userId: user.id, email: user.email });
-  return { statusCode: 200, body: JSON.stringify({ token, user: { id: user.id, email: user.email, name: user.name } }) };
-}
-
-async function handleAuthRegister(req: { body: { email?: string; password?: string; name?: string } }) {
-  const { email, password, name } = req.body || {};
-  if (!email || !password) {
-    return { statusCode: 400, body: JSON.stringify({ message: 'Email and password required' }) };
-  }
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
-    return { statusCode: 400, body: JSON.stringify({ message: 'Email already exists' }) };
-  }
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const user = await prisma.user.create({
-    data: { email, password: hashedPassword, name: name || email.split('@')[0] }
-  });
-  const token = createToken({ userId: user.id, email: user.email });
-  return { statusCode: 201, body: JSON.stringify({ token, user: { id: user.id, email: user.email, name: user.name } }) };
+function simpleToken(userId: number, email: string): string {
+  return Buffer.from(JSON.stringify({ userId, email })).toString('base64');
 }
 
 export default async function handler(req: unknown, res: unknown) {
@@ -73,28 +32,45 @@ export default async function handler(req: unknown, res: unknown) {
   vercelRes.setHeader('Content-Type', 'application/json');
 
   const url = vercelReq.url || '/';
+  const method = vercelReq.method;
   
-  try {
-    if (url === '/api/health') {
-      vercelRes.status(200).send(JSON.stringify({ status: 'ok' }));
-      return;
-    }
-    
-    if (url === '/api/auth/login' && vercelReq.method === 'POST') {
-      const result = await handleAuthLogin(vercelReq as { body: { email?: string; password?: string } });
-      vercelRes.status(result.statusCode).send(result.body);
-      return;
-    }
-    
-    if (url === '/api/auth/register' && vercelReq.method === 'POST') {
-      const result = await handleAuthRegister(vercelReq as { body: { email?: string; password?: string; name?: string } });
-      vercelRes.status(result.statusCode).send(result.body);
-      return;
-    }
-    
-    vercelRes.status(404).send(JSON.stringify({ error: 'Not found', url }));
-  } catch (err) {
-    console.error('Error:', err);
-    vercelRes.status(500).send(JSON.stringify({ error: 'Internal server error' }));
+  if (url === '/api/health' && method === 'GET') {
+    vercelRes.status(200).send(JSON.stringify({ status: 'ok' }));
+    return;
   }
+  
+  if (url === '/api/auth/login' && method === 'POST') {
+    const { email, password } = (vercelReq.body as { email?: string; password?: string }) || {};
+    if (!email || !password) {
+      vercelRes.status(400).send(JSON.stringify({ message: 'Email and password required' }));
+      return;
+    }
+    const user = users.find(u => u.email === email);
+    if (!user) {
+      vercelRes.status(401).send(JSON.stringify({ message: 'Invalid credentials' }));
+      return;
+    }
+    const token = simpleToken(user.id, user.email);
+    vercelRes.status(200).send(JSON.stringify({ token, user: { id: user.id, email: user.email, name: user.name } }));
+    return;
+  }
+  
+  if (url === '/api/auth/register' && method === 'POST') {
+    const { email, password, name } = (vercelReq.body as { email?: string; password?: string; name?: string }) || {};
+    if (!email || !password) {
+      vercelRes.status(400).send(JSON.stringify({ message: 'Email and password required' }));
+      return;
+    }
+    if (users.find(u => u.email === email)) {
+      vercelRes.status(400).send(JSON.stringify({ message: 'Email already exists' }));
+      return;
+    }
+    const newUser = { id: users.length + 1, email, password, name: name || email.split('@')[0] };
+    users.push(newUser);
+    const token = simpleToken(newUser.id, newUser.email);
+    vercelRes.status(201).send(JSON.stringify({ token, user: { id: newUser.id, email: newUser.email, name: newUser.name } }));
+    return;
+  }
+  
+  vercelRes.status(404).send(JSON.stringify({ error: 'Not found', url, method }));
 }
