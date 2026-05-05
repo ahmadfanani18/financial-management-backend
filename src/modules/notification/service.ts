@@ -72,6 +72,59 @@ export class NotificationService {
       type: 'GOAL_MILESTONE',
     });
   }
+
+  async createPlanReminder(userId: string, planName: string, dueDate: Date) {
+    return this.create(userId, {
+      title: 'Plan Due Soon',
+      message: `Plan "${planName}" akan jatuh tempo pada ${dueDate.toLocaleDateString('id-ID')}.`,
+      type: 'PLAN_REMINDER',
+    });
+  }
+
+  async createAccountAlert(userId: string, accountName: string, changeType: 'increase' | 'decrease', amount: number) {
+    const direction = changeType === 'increase' ? 'meningkat' : 'menurun';
+    return this.create(userId, {
+      title: 'Perubahan Saldo',
+      message: `Saldo ${accountName} ${direction} sebesar Rp ${amount.toLocaleString('id-ID')}.`,
+      type: 'ACCOUNT_ALERT',
+    });
+  }
+
+  async createDailySummary(userId: string, totalExpense: number, transactionCount: number) {
+    return this.create(userId, {
+      title: 'Ringkasan Harian',
+      message: `Hari ini Anda telah mencatat ${transactionCount} transaksi dengan total pengeluaran Rp ${totalExpense.toLocaleString('id-ID')}.`,
+      type: 'DAILY_SUMMARY',
+    });
+  }
+
+  async createRecurringReminder(userId: string, description: string, nextDate: Date) {
+    return this.create(userId, {
+      title: 'Transaksi Berulang',
+      message: `Ingat untuk mencatat: ${description} pada ${nextDate.toLocaleDateString('id-ID')}.`,
+      type: 'RECURRING_TRANSACTION',
+    });
+  }
+
+  async shouldNotify(userId: string, notificationType: string): Promise<boolean> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { preferences: true },
+    });
+    const prefs = (user?.preferences as Record<string, boolean>) || {};
+
+    const preferenceKeyMap: Record<string, string> = {
+      'BUDGET_WARNING': 'budgetWarning',
+      'GOAL_MILESTONE': 'goalMilestone',
+      'PLAN_REMINDER': 'planReminder',
+      'ACCOUNT_ALERT': 'accountAlert',
+      'DAILY_SUMMARY': 'dailySummary',
+      'RECURRING_TRANSACTION': 'recurringTransaction',
+    };
+
+    const prefKey = preferenceKeyMap[notificationType];
+    return prefKey ? prefs[prefKey] !== false : true;
+  }
 }
 
 export const notificationService = new NotificationService();
