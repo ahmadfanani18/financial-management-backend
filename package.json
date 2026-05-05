@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "prisma generate && node node_modules/esbuild/install.js && node_modules/.bin/esbuild src/index.ts --bundle --platform=node --format=esm --outdir=dist --external:prisma --external:@prisma/client --external:bcryptjs",
+    "build": "prisma generate && npx esbuild src/index.ts --bundle --platform=node --format=esm --outdir=dist --external:prisma --external:@prisma/client --external:bcryptjs --external:pg-native",
     "start": "node dist/index.js",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
