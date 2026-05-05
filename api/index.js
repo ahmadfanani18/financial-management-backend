@@ -22,7 +22,7 @@ let prisma = null;
 
 async function getPrisma() {
   if (!prisma) {
-    const { PrismaClient } = await import('./node_modules/.prisma/client/index.js');
+    const { PrismaClient } = await import('@prisma/client');
     const databaseUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
     prisma = new PrismaClient({
       datasources: databaseUrl ? {
