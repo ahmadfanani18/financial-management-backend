@@ -286,13 +286,13 @@ export default async function handler(req, res) {
         data: {
           userId: token.userId,
           accountId: body.accountId,
-          categoryId: body.categoryId,
+          categoryId: body.categoryId || null,
           type: body.type || 'EXPENSE',
           amount: body.amount,
           description: body.description || '',
           date: body.date ? new Date(body.date).toISOString() : new Date().toISOString(),
-          fromAccountId: body.fromAccountId,
-          toAccountId: body.toAccountId,
+          fromAccountId: body.fromAccountId || null,
+          toAccountId: body.toAccountId || null,
           isRecurring: body.isRecurring || false
         },
         include: { account: true, category: true }
@@ -318,6 +318,9 @@ export default async function handler(req, res) {
       const body = parseBody(req.body);
       const updateData = { ...body };
       if (body.date) updateData.date = new Date(body.date).toISOString();
+      if (body.fromAccountId === '') updateData.fromAccountId = null;
+      if (body.toAccountId === '') updateData.toAccountId = null;
+      if (body.categoryId === '') updateData.categoryId = null;
       const transaction = await db.transaction.update({
         where: { id: transactionMatch[1] },
         data: updateData
