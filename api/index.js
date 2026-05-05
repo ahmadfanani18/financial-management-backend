@@ -19,16 +19,20 @@ function parseToken(authHeader) {
 }
 
 let prisma = null;
+let prismaInitError = null;
 
 async function getPrisma() {
-  if (!prisma) {
+  if (prismaInitError) throw prismaInitError;
+  if (prisma) return prisma;
+  try {
     const { PrismaClient } = await import('@prisma/client');
-    const databaseUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
-    prisma = new PrismaClient({
-      datasources: databaseUrl ? { db: { url: databaseUrl } } : undefined
-    });
+    prisma = new PrismaClient();
+    return prisma;
+  } catch (e) {
+    prismaInitError = e;
+    console.error('Prisma init error:', e);
+    throw e;
   }
-  return prisma;
 }
 
 function getBody(req) {
@@ -659,6 +663,7 @@ export default async function handler(req, res) {
     res.status(404).send(JSON.stringify({ error: 'Not found', url, method }));
   } catch (err) {
     console.error('Error:', err);
-    res.status(500).send(JSON.stringify({ error: 'Internal server error', message: String(err) }));
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    res.status(500).send(JSON.stringify({ error: 'Internal server error', message: errorMessage, url }));
   }
 }
