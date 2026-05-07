@@ -41,7 +41,17 @@ export class AuthService {
       throw new Error('Invalid credentials');
     }
     
-    const isValid = await bcrypt.compare(input.password, user.password);
+    const isBcrypt = user.password?.startsWith('$2');
+    let isValid = false;
+    
+    if (isBcrypt) {
+      isValid = await bcrypt.compare(input.password, user.password);
+    } else if (user.password) {
+      const crypto = await import('crypto');
+      const [salt, hash] = user.password.split(':');
+      const newHash = crypto.createHash('sha256').update(salt + input.password).digest('hex');
+      isValid = hash === newHash;
+    }
     
     if (!isValid) {
       throw new Error('Invalid credentials');

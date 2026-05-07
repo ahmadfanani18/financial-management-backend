@@ -43,6 +43,15 @@ export async function categoryRoutes(fastify: FastifyInstance) {
   fastify.put('/:id', {
     schema: {
       params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } } },
+      body: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          type: { type: 'string', enum: ['INCOME', 'EXPENSE'] },
+          icon: { type: 'string' },
+          color: { type: 'string' },
+        },
+      },
     },
   }, updateCategoryHandler);
 

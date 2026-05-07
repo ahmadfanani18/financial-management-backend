@@ -49,14 +49,17 @@ function parseBody(body) {
   return typeof body === 'string' ? JSON.parse(body) : body;
 }
 
+import bcrypt from 'bcryptjs';
+
 async function hashPassword(password) {
-  const crypto = await import('crypto');
-  const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.createHash('sha256').update(salt + password).digest('hex');
-  return salt + ':' + hash;
+  return bcrypt.hash(password, 10);
 }
 
 async function verifyPassword(password, hashedPassword) {
+  if (!hashedPassword) return false;
+  if (hashedPassword.startsWith('$2')) {
+    return bcrypt.compare(password, hashedPassword);
+  }
   const crypto = await import('crypto');
   const [salt, hash] = hashedPassword.split(':');
   const newHash = crypto.createHash('sha256').update(salt + password).digest('hex');
