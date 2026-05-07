@@ -124,7 +124,8 @@ export default async function handler(req, res) {
   if (url === '/api/auth/oauth-sync' && method === 'POST') {
     try {
       const body = parseBody(req.body);
-      const { email, name, avatar, provider, providerId } = body || {};
+      console.log('OAuth sync body:', body);
+      const { email, name, image, provider, providerId } = body || {};
       if (!email) {
         res.status(400).send(JSON.stringify({ message: 'Email required' }));
         return;
@@ -132,7 +133,7 @@ export default async function handler(req, res) {
       let user = await db.user.findUnique({ where: { email } });
       if (!user) {
         user = await db.user.create({
-          data: { email, name: name || email.split('@')[0], avatar: avatar || null }
+          data: { email, name: name || email.split('@')[0], avatar: image || null }
         });
       }
       const authToken = simpleToken(user.id, user.email);
@@ -140,7 +141,7 @@ export default async function handler(req, res) {
       return;
     } catch (err) {
       console.error('OAuth error:', err);
-      res.status(500).send(JSON.stringify({ message: 'Internal server error' }));
+      res.status(500).send(JSON.stringify({ message: 'Internal server error', error: String(err) }));
       return;
     }
   }
