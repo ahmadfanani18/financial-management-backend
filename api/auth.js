@@ -123,19 +123,26 @@ export default async function handler(req, res) {
   // OAuth sync (from client after session established)
   if (url === '/api/auth/oauth-sync' && method === 'POST') {
     try {
+      console.log('req.body type:', typeof req.body, req.body);
       const body = parseBody(req.body);
-      console.log('OAuth sync body:', body);
-      const { email, name, image, provider, providerId } = body || {};
+      console.log('parsed body:', body);
+      if (!body || typeof body !== 'object') {
+        res.status(400).send(JSON.stringify({ message: 'Invalid body' }));
+        return;
+      }
+      const { email, name, image } = body;
       if (!email) {
         res.status(400).send(JSON.stringify({ message: 'Email required' }));
         return;
       }
+      console.log('Creating/finding user:', email);
       let user = await db.user.findUnique({ where: { email } });
       if (!user) {
         user = await db.user.create({
           data: { email, name: name || email.split('@')[0], avatar: image || null }
         });
       }
+      console.log('User found/created:', user.id);
       const authToken = simpleToken(user.id, user.email);
       res.status(200).send(JSON.stringify({ token: authToken, user: { id: user.id, email: user.email, name: user.name } }));
       return;
