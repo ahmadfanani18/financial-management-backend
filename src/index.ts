@@ -27,7 +27,9 @@ await fastify.register(cors, {
     'http://localhost:3000',
     'http://localhost:3001',
     'https://financial-management-frontend.vercel.app',
-    'https://financial-management-frontend-*.vercel.app'
+    'https://financial-management-frontend-*.vercel.app',
+    'https://financial-management-backend-self.vercel.app',
+    'https://financial-management-backend-*.vercel.app'
   ],
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization'],
