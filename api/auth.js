@@ -1,4 +1,4 @@
-import { getPrisma, parseBody, simpleToken, setupCors, hashPassword, verifyPassword } from './utils.js';
+import { getPrisma, parseBody, simpleToken, parseToken, setupCors, hashPassword, verifyPassword } from './utils.js';
 
 export default async function handler(req, res) {
   try {
