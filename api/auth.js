@@ -1,5 +1,7 @@
 import { getPrisma, parseBody, simpleToken, parseToken, setupCors, hashPassword, verifyPassword } from './utils.js';
 import crypto from 'crypto';
+import nodemailer from 'nodemailer';
+import { MailtrapTransport } from 'mailtrap';
 
 export default async function handler(req, res) {
   try {
@@ -182,21 +184,19 @@ export default async function handler(req, res) {
       const mailtrapToken = process.env.MAILTRAP_API_TOKEN;
       if (mailtrapToken) {
         try {
-          const response = await fetch('https://send.api.mailtrap.com/api/send', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${mailtrapToken}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              from: { email: 'hello@demomailtrap.co', name: 'FinTrack' },
-              to: [{ email: user.email }],
-              subject: 'Reset Password - FinTrack',
-              text: `Halo ${user.name},\n\nKlik link berikut untuk reset password:\n${resetUrl}\n\nLink ini berlaku 1 jam.\n\nJika Anda tidak meminta reset password, abaikan email ini.`,
-              html: `<h1>FinTrack - Reset Password</h1><p>Halo ${user.name},</p><p>Klik link berikut untuk reset password:</p><a href="${resetUrl}">Reset Password</a><p>Link ini berlaku 1 jam.</p>`
+          const transport = nodemailer.createTransport(
+            MailtrapTransport({
+              token: mailtrapToken,
             })
+          );
+          const result = await transport.sendMail({
+            from: { address: 'hello@demomailtrap.co', name: 'FinTrack' },
+            to: [user.email],
+            subject: 'Reset Password - FinTrack',
+            text: `Halo ${user.name},\n\nKlik link berikut untuk reset password:\n${resetUrl}\n\nLink ini berlaku 1 jam.\n\nJika Anda tidak meminta reset password, abaikan email ini.`,
+            html: `<h1>FinTrack - Reset Password</h1><p>Halo ${user.name},</p><p>Klik link berikut untuk reset password:</p><a href="${resetUrl}">Reset Password</a><p>Link ini berlaku 1 jam.</p>`
           });
-          console.log('Mailtrap response:', response.status);
+          console.log('Mailtrap result:', result);
         } catch (emailErr) {
           console.error('Email send error:', emailErr);
         }
