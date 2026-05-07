@@ -1,19 +1,22 @@
 import { getPrisma, parseBody, simpleToken, setupCors, hashPassword, verifyPassword } from './utils.js';
 
 export default async function handler(req, res) {
-  const origin = req.headers.origin;
-  setupCors(res, origin);
+  try {
+    const origin = req.headers.origin;
+    setupCors(res, origin);
 
-  if (req.method === 'OPTIONS') {
-    res.status(204).send('');
-    return;
-  }
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
 
-  res.setHeader('Content-Type', 'application/json');
-  const url = (req.url || '/').split('?')[0];
-  const method = req.method;
+    res.setHeader('Content-Type', 'application/json');
+    const url = (req.url || '/').split('?')[0];
+    const method = req.method;
 
-  const db = await getPrisma();
+    console.log('Request:', method, url);
+    
+    const db = await getPrisma();
 
   // Health check
   if (url === '/api/health' && method === 'GET') {
@@ -154,4 +157,8 @@ export default async function handler(req, res) {
   }
 
   res.status(404).send(JSON.stringify({ error: 'Not found', url, method }));
+  } catch (err) {
+    console.error('Handler error:', err);
+    res.status(500).send(JSON.stringify({ message: 'Internal server error', error: String(err) }));
+  }
 }
