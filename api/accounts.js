@@ -1,6 +1,7 @@
 import { getPrisma, parseBody, setupCors, parseToken } from './utils.js';
 
 export default async function handler(req, res) {
+  let db = null;
   try {
     const origin = req.headers.origin;
     setupCors(res, origin);
@@ -20,7 +21,7 @@ export default async function handler(req, res) {
       return;
     }
 
-    const db = await getPrisma();
+    db = await getPrisma();
 
   // GET all accounts
   if (url === '/api/accounts' && method === 'GET') {
@@ -111,5 +112,9 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error('Accounts handler error:', err);
     res.status(500).send(JSON.stringify({ message: 'Internal server error', error: String(err) }));
+  } finally {
+    if (db) {
+      try { await db.$disconnect(); } catch {}
+    }
   }
 }

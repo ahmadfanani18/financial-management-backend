@@ -35,7 +35,8 @@ async function getPrisma() {
     const { PrismaClient } = await import('@prisma/client');
     const databaseUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
     prisma = new PrismaClient({
-      datasources: databaseUrl ? { db: { url: databaseUrl } } : undefined
+      datasources: databaseUrl ? { db: { url: databaseUrl } } : undefined,
+      log: [],
     });
   }
   return prisma;
