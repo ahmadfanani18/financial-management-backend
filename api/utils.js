@@ -41,6 +41,7 @@ async function getPrisma() {
 }
 
 function parseBody(body) {
+  if (!body) return {};
   return typeof body === 'string' ? JSON.parse(body) : body;
 }
 

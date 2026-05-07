@@ -42,25 +42,31 @@ export default async function handler(req, res) {
 
   // Register
   if (url === '/api/auth/register' && method === 'POST') {
-    const body = parseBody(req.body);
-    const { email, password, name } = body || {};
-    if (!email || !password) {
-      res.status(400).send(JSON.stringify({ message: 'Email and password required' }));
+    try {
+      const body = parseBody(req.body);
+      const { email, password, name } = body || {};
+      if (!email || !password) {
+        res.status(400).send(JSON.stringify({ message: 'Email and password required' }));
+        return;
+      }
+      const existing = await db.user.findUnique({ where: { email } });
+      if (existing) {
+        res.status(400).send(JSON.stringify({ message: 'Email already exists' }));
+        return;
+      }
+      const bcrypt = await import('bcryptjs');
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const user = await db.user.create({
+        data: { email, password: hashedPassword, name: name || email.split('@')[0] }
+      });
+      const authToken = simpleToken(user.id, user.email);
+      res.status(201).send(JSON.stringify({ token: authToken, user: { id: user.id, email: user.email, name: user.name } }));
+      return;
+    } catch (err) {
+      console.error('Register error:', err);
+      res.status(500).send(JSON.stringify({ message: 'Internal server error', error: String(err) }));
       return;
     }
-    const existing = await db.user.findUnique({ where: { email } });
-    if (existing) {
-      res.status(400).send(JSON.stringify({ message: 'Email already exists' }));
-      return;
-    }
-    const bcrypt = await import('bcryptjs');
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await db.user.create({
-      data: { email, password: hashedPassword, name: name || email.split('@')[0] }
-    });
-    const authToken = simpleToken(user.id, user.email);
-    res.status(201).send(JSON.stringify({ token: authToken, user: { id: user.id, email: user.email, name: user.name } }));
-    return;
   }
 
   // Auth me
