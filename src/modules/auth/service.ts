@@ -1,5 +1,7 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { prisma } from '../../config/prisma.js';
+import { sendPasswordResetEmail } from '../../utils/email.service.js';
 import type { RegisterInput, LoginInput } from './schemas.js';
 
 export class AuthService {
@@ -109,6 +111,78 @@ export class AuthService {
     });
 
     return { message: 'Password berhasil diperbarui' };
+  }
+
+  async forgotPassword(email: string) {
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      return { message: 'Jika email tersebut terdaftar, kami akan mengirim link reset password' };
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+    await prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        token: tokenHash,
+        expiresAt,
+      },
+    });
+
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+    await sendPasswordResetEmail({
+      to: user.email,
+      name: user.name,
+      resetUrl,
+    });
+
+    return { message: 'Jika email tersebut terdaftar, kami akan mengirim link reset password' };
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    const resetToken = await prisma.passwordResetToken.findUnique({
+      where: { token: tokenHash },
+      include: { user: true },
+    });
+
+    if (!resetToken) {
+      throw new Error('Token tidak valid');
+    }
+
+    if (resetToken.used) {
+      throw new Error('Token sudah digunakan');
+    }
+
+    if (resetToken.expiresAt < new Date()) {
+      throw new Error('Token sudah kedaluwarsa');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({
+      where: { id: resetToken.userId },
+      data: { password: hashedPassword },
+    });
+
+    await prisma.passwordResetToken.update({
+      where: { id: resetToken.id },
+      data: { used: true },
+    });
+
+    return { message: 'Password berhasil direset' };
+  }
+
+  async cleanupExpiredTokens() {
+    const result = await prisma.passwordResetToken.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
+    });
+    return { deleted: result.count };
   }
 }
 

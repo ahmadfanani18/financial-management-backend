@@ -91,8 +91,22 @@ model User {
   budgets      Budget[]
   goals        Goal[]
   plans        Plan[]
-  reminders    Reminder[]
-  notifications Notification[]
+  reminders         Reminder[]
+  notifications    Notification[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Account {

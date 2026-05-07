@@ -50,3 +50,21 @@ export async function changePasswordHandler(
   const result = await authService.changePassword(request.user.id, currentPassword, newPassword);
   return reply.send(result);
 }
+
+export async function forgotPasswordHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const { email } = request.body as { email: string };
+  const result = await authService.forgotPassword(email);
+  return reply.send(result);
+}
+
+export async function resetPasswordHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const { token, password } = request.body as { token: string; password: string };
+  const result = await authService.resetPassword(token, password);
+  return reply.send(result);
+}

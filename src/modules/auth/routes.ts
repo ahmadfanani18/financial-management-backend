@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { registerHandler, loginHandler, meHandler, changePasswordHandler } from './controller.js';
+import { registerHandler, loginHandler, meHandler, changePasswordHandler, forgotPasswordHandler, resetPasswordHandler } from './controller.js';
 import { authenticate } from '../../middleware/auth.js';
 
 export async function authRoutes(fastify: FastifyInstance) {
@@ -75,4 +75,29 @@ export async function authRoutes(fastify: FastifyInstance) {
       },
     },
   }, changePasswordHandler);
+
+  fastify.post('/forgot-password', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['email'],
+        properties: {
+          email: { type: 'string', format: 'email' },
+        },
+      },
+    },
+  }, forgotPasswordHandler);
+
+  fastify.post('/reset-password', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['token', 'password'],
+        properties: {
+          token: { type: 'string', minLength: 1 },
+          password: { type: 'string', minLength: 8 },
+        },
+      },
+    },
+  }, resetPasswordHandler);
 }

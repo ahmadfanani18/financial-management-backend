@@ -23,6 +23,7 @@
     "bcryptjs": "^2.4.3",
     "dotenv": "^17.4.2",
     "fastify": "^4.28.1",
+    "nodemailer": "^8.0.7",
     "papaparse": "^5.5.3",
     "tsx": "^4.7.0",
     "zod": "^3.23.8"
