@@ -1,25 +1,26 @@
 import { getPrisma, parseBody, setupCors, parseToken } from './utils.js';
 
 export default async function handler(req, res) {
-  const origin = req.headers.origin;
-  setupCors(res, origin);
+  try {
+    const origin = req.headers.origin;
+    setupCors(res, origin);
 
-  if (req.method === 'OPTIONS') {
-    res.status(204).send('');
-    return;
-  }
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
 
-  res.setHeader('Content-Type', 'application/json');
-  const url = (req.url || '/').split('?')[0];
-  const method = req.method;
+    res.setHeader('Content-Type', 'application/json');
+    const url = (req.url || '/').split('?')[0];
+    const method = req.method;
 
-  const token = parseToken(req.headers.authorization);
-  if (!token) {
-    res.status(401).send(JSON.stringify({ message: 'Unauthorized' }));
-    return;
-  }
+    const token = parseToken(req.headers.authorization);
+    if (!token) {
+      res.status(401).send(JSON.stringify({ message: 'Unauthorized' }));
+      return;
+    }
 
-  const db = await getPrisma();
+    const db = await getPrisma();
 
   // GET all accounts
   if (url === '/api/accounts' && method === 'GET') {
@@ -107,4 +108,8 @@ export default async function handler(req, res) {
   }
 
   res.status(404).send(JSON.stringify({ error: 'Not found', url, method }));
+  } catch (err) {
+    console.error('Accounts handler error:', err);
+    res.status(500).send(JSON.stringify({ message: 'Internal server error', error: String(err) }));
+  }
 }
