@@ -1,4 +1,4 @@
-import { getPrisma, parseBody, simpleToken, setupCors } from './utils.js';
+import { getPrisma, parseBody, simpleToken, setupCors, hashPassword } from './utils.js';
 
 export default async function handler(req, res) {
   const origin = req.headers.origin;
@@ -24,20 +24,31 @@ export default async function handler(req, res) {
 
   // Login
   if (url === '/api/auth/login' && method === 'POST') {
-    const body = parseBody(req.body);
-    const { email, password } = body || {};
-    if (!email || !password) {
-      res.status(400).send(JSON.stringify({ message: 'Email and password required' }));
+    try {
+      const body = parseBody(req.body);
+      const { email, password } = body || {};
+      if (!email || !password) {
+        res.status(400).send(JSON.stringify({ message: 'Email and password required' }));
+        return;
+      }
+      const user = await db.user.findUnique({ where: { email } });
+      if (!user || !user.password) {
+        res.status(401).send(JSON.stringify({ message: 'Invalid credentials' }));
+        return;
+      }
+      const isValid = await verifyPassword(password, user.password);
+      if (!isValid) {
+        res.status(401).send(JSON.stringify({ message: 'Invalid credentials' }));
+        return;
+      }
+      const authToken = simpleToken(user.id, user.email);
+      res.status(200).send(JSON.stringify({ token: authToken, user: { id: user.id, email: user.email, name: user.name } }));
+      return;
+    } catch (err) {
+      console.error('Login error:', err);
+      res.status(500).send(JSON.stringify({ message: 'Internal server error', error: String(err) }));
       return;
     }
-    const user = await db.user.findUnique({ where: { email } });
-    if (!user) {
-      res.status(401).send(JSON.stringify({ message: 'Invalid credentials' }));
-      return;
-    }
-    const authToken = simpleToken(user.id, user.email);
-    res.status(200).send(JSON.stringify({ token: authToken, user: { id: user.id, email: user.email, name: user.name } }));
-    return;
   }
 
   // Register
@@ -54,8 +65,7 @@ export default async function handler(req, res) {
         res.status(400).send(JSON.stringify({ message: 'Email already exists' }));
         return;
       }
-      const bcrypt = await import('bcryptjs');
-      const hashedPassword = await bcrypt.hash(password, 10);
+      const hashedPassword = await hashPassword(password);
       const user = await db.user.create({
         data: { email, password: hashedPassword, name: name || email.split('@')[0] }
       });

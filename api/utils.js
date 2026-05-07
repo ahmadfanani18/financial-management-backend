@@ -45,4 +45,18 @@ function parseBody(body) {
   return typeof body === 'string' ? JSON.parse(body) : body;
 }
 
-export { simpleToken, parseToken, getPrisma, parseBody, setupCors, ALLOWED_ORIGINS };
+async function hashPassword(password) {
+  const crypto = await import('crypto');
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.createHash('sha256').update(salt + password).digest('hex');
+  return salt + ':' + hash;
+}
+
+async function verifyPassword(password, hashedPassword) {
+  const crypto = await import('crypto');
+  const [salt, hash] = hashedPassword.split(':');
+  const newHash = crypto.createHash('sha256').update(salt + password).digest('hex');
+  return hash === newHash;
+}
+
+export { simpleToken, parseToken, getPrisma, parseBody, setupCors, ALLOWED_ORIGINS, hashPassword, verifyPassword };
