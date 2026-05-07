@@ -1,7 +1,9 @@
 import { getPrisma, parseBody, setupCors, parseToken } from './utils.js';
 
 export default async function handler(req, res) {
-  const origin = req.headers.origin;
+  let db = null;
+  try {
+    const origin = req.headers.origin;
   setupCors(res, origin);
 
   if (req.method === 'OPTIONS') {
@@ -19,7 +21,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const db = await getPrisma();
+  db = await getPrisma();
 
   // GET all goals
   if (url === '/api/goals' && method === 'GET') {
@@ -206,4 +208,12 @@ export default async function handler(req, res) {
   }
 
   res.status(404).send(JSON.stringify({ error: 'Not found', url, method }));
+  } catch (err) {
+    console.error('Goals handler error:', err);
+    res.status(500).send(JSON.stringify({ message: 'Internal server error', error: String(err) }));
+  } finally {
+    if (db) {
+      try { await db.$disconnect(); } catch {}
+    }
+  }
 }
