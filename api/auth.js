@@ -1,4 +1,5 @@
 import { getPrisma, parseBody, simpleToken, parseToken, setupCors, hashPassword, verifyPassword } from './utils.js';
+import crypto from 'crypto';
 
 export default async function handler(req, res) {
   try {
@@ -151,6 +152,109 @@ export default async function handler(req, res) {
       return;
     } catch (err) {
       console.error('OAuth error:', err);
+      res.status(500).send(JSON.stringify({ message: 'Internal server error', error: String(err) }));
+      return;
+    }
+  }
+
+  // Forgot password
+  if (url === '/api/auth/forgot-password' && method === 'POST') {
+    try {
+      const body = parseBody(req.body);
+      const { email } = body || {};
+      if (!email) {
+        res.status(400).send(JSON.stringify({ message: 'Email required' }));
+        return;
+      }
+      const user = await db.user.findUnique({ where: { email } });
+      if (!user) {
+        res.status(200).send(JSON.stringify({ message: 'Jika email tersebut terdaftar, kami akan mengirim link reset password' }));
+        return;
+      }
+      const token = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+      await db.passwordResetToken.create({
+        data: { userId: user.id, token: tokenHash, expiresAt }
+      });
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
+      const mailtrapToken = process.env.MAILTRAP_API_TOKEN;
+      if (mailtrapToken) {
+        try {
+          const response = await fetch('https://send.api.mailtrap.com/api/send', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${mailtrapToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              from: { email: 'hello@demomailtrap.co', name: 'FinTrack' },
+              to: [{ email: user.email }],
+              subject: 'Reset Password - FinTrack',
+              text: `Halo ${user.name},\n\nKlik link berikut untuk reset password:\n${resetUrl}\n\nLink ini berlaku 1 jam.\n\nJika Anda tidak meminta reset password, abaikan email ini.`,
+              html: `<h1>FinTrack - Reset Password</h1><p>Halo ${user.name},</p><p>Klik link berikut untuk reset password:</p><a href="${resetUrl}">Reset Password</a><p>Link ini berlaku 1 jam.</p>`
+            })
+          });
+          console.log('Mailtrap response:', response.status);
+        } catch (emailErr) {
+          console.error('Email send error:', emailErr);
+        }
+      } else {
+        console.log('========== EMAIL SKIPPED (NO MAILTRAP_TOKEN) ==========');
+        console.log('To:', user.email);
+        console.log('Name:', user.name);
+        console.log('Reset URL:', resetUrl);
+        console.log('=========================================================');
+      }
+      res.status(200).send(JSON.stringify({ message: 'Jika email tersebut terdaftar, kami akan mengirim link reset password' }));
+      return;
+    } catch (err) {
+      console.error('Forgot password error:', err);
+      res.status(500).send(JSON.stringify({ message: 'Internal server error', error: String(err) }));
+      return;
+    }
+  }
+
+  // Reset password
+  if (url === '/api/auth/reset-password' && method === 'POST') {
+    try {
+      const body = parseBody(req.body);
+      const { token, password } = body || {};
+      if (!token || !password) {
+        res.status(400).send(JSON.stringify({ message: 'Token and password required' }));
+        return;
+      }
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      const resetToken = await db.passwordResetToken.findUnique({
+        where: { token: tokenHash },
+        include: { user: true }
+      });
+      if (!resetToken) {
+        res.status(400).send(JSON.stringify({ message: 'Token tidak valid' }));
+        return;
+      }
+      if (resetToken.used) {
+        res.status(400).send(JSON.stringify({ message: 'Token sudah digunakan' }));
+        return;
+      }
+      if (resetToken.expiresAt < new Date()) {
+        res.status(400).send(JSON.stringify({ message: 'Token sudah kedaluwarsa' }));
+        return;
+      }
+      const hashedPassword = await hashPassword(password);
+      await db.user.update({
+        where: { id: resetToken.userId },
+        data: { password: hashedPassword }
+      });
+      await db.passwordResetToken.update({
+        where: { id: resetToken.id },
+        data: { used: true }
+      });
+      res.status(200).send(JSON.stringify({ message: 'Password berhasil direset' }));
+      return;
+    } catch (err) {
+      console.error('Reset password error:', err);
       res.status(500).send(JSON.stringify({ message: 'Internal server error', error: String(err) }));
       return;
     }
