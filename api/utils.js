@@ -5,6 +5,15 @@ const ALLOWED_ORIGINS = [
   'https://financial-management-frontend-seven.vercel.app'
 ];
 
+function setupCors(res, origin) {
+  if (!origin || ALLOWED_ORIGINS.includes(origin) || origin.endsWith('.vercel.app')) {
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, PATCH, OPTIONS');
+  }
+}
+
 function simpleToken(userId, email) {
   return Buffer.from(JSON.stringify({ userId, email })).toString('base64');
 }
@@ -33,15 +42,6 @@ async function getPrisma() {
 
 function parseBody(body) {
   return typeof body === 'string' ? JSON.parse(body) : body;
-}
-
-function setupCors(res, origin) {
-  if (ALLOWED_ORIGINS.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, PATCH, OPTIONS');
-  }
 }
 
 export { simpleToken, parseToken, getPrisma, parseBody, setupCors, ALLOWED_ORIGINS };
