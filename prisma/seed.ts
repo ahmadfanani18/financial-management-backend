@@ -6,316 +6,488 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Seeding database...');
 
-  // Create user
-  const hashedPassword = await bcrypt.hash('password123', 10);
-  const user = await prisma.user.upsert({
-    where: { email: 'demo@example.com' },
-    update: {},
-    create: {
+  const hashedPassword = await bcrypt.hash('demo123', 10);
+
+  const demoUser = await prisma.user.create({
+    data: {
       email: 'demo@example.com',
       name: 'Demo User',
       password: hashedPassword,
-      role: 'ADMIN',
+      avatar: null,
+      role: 'MEMBER',
     },
   });
-  console.log('Created user:', user.email);
 
-  // Create default categories (EXPENSE)
-  const expenseCategories = [
-    { name: 'Makanan', type: 'EXPENSE', icon: '🍔', color: '#F97316' },
-    { name: 'Transportasi', type: 'EXPENSE', icon: '🚗', color: '#3B82F6' },
-    { name: 'Hiburan', type: 'EXPENSE', icon: '🎬', color: '#EF4444' },
-    { name: 'Belanja', type: 'EXPENSE', icon: '🛒', color: '#8B5CF6' },
-    { name: 'Tagihan', type: 'EXPENSE', icon: '📄', color: '#F59E0B' },
-    { name: 'Kesehatan', type: 'EXPENSE', icon: '🏥', color: '#10B981' },
-    { name: 'Pendidikan', type: 'EXPENSE', icon: '📚', color: '#06B6D4' },
-  ];
+  console.log('Created demo user:', demoUser.email);
 
-  // Create default categories (INCOME)
-  const incomeCategories = [
-    { name: 'Gaji', type: 'INCOME', icon: '💰', color: '#10B981' },
-    { name: 'Freelance', type: 'INCOME', icon: '💼', color: '#06B6D4' },
-    { name: 'Investasi', type: 'INCOME', icon: '📈', color: '#8B5CF6' },
-    { name: 'Hadiah', type: 'INCOME', icon: '🎁', color: '#EC4899' },
-    { name: 'Lainnya', type: 'INCOME', icon: '📦', color: '#6B7280' },
-  ];
-
-  for (const cat of expenseCategories) {
-    await prisma.category.upsert({
-      where: { id: `${cat.name.toLowerCase()}-expense` },
-      update: {},
-      create: {
-        ...cat,
-        userId: user.id,
-        isDefault: true,
-      },
-    });
-  }
-
-  for (const cat of incomeCategories) {
-    await prisma.category.upsert({
-      where: { id: `${cat.name.toLowerCase()}-income` },
-      update: {},
-      create: {
-        ...cat,
-        userId: user.id,
-        isDefault: true,
-      },
-    });
-  }
-  console.log('Created categories');
-
-  // Create accounts
   const accounts = await Promise.all([
-    prisma.account.upsert({
-      where: { id: 'bank-bca' },
-      update: {},
-      create: {
-        id: 'bank-bca',
-        userId: user.id,
+    prisma.account.create({
+      data: {
+        userId: demoUser.id,
         name: 'Bank BCA',
         type: 'BANK',
-        balance: 5000000,
+        balance: 15000000,
         currency: 'IDR',
-        icon: 'bank',
-        color: '#3B82F6',
+        icon: 'building-bank',
+        color: '#0EA5E9',
       },
     }),
-    prisma.account.upsert({
-      where: { id: 'gopay' },
-      update: {},
-      create: {
-        id: 'gopay',
-        userId: user.id,
+    prisma.account.create({
+      data: {
+        userId: demoUser.id,
         name: 'GoPay',
         type: 'EWALLET',
-        balance: 1500000,
+        balance: 2500000,
         currency: 'IDR',
         icon: 'wallet',
-        color: '#10B981',
+        color: '#22C55E',
       },
     }),
-    prisma.account.upsert({
-      where: { id: 'ovo' },
-      update: {},
-      create: {
-        id: 'ovo',
-        userId: user.id,
-        name: 'OVO',
-        type: 'EWALLET',
-        balance: 500000,
-        currency: 'IDR',
-        icon: 'wallet',
-        color: '#8B5CF6',
-      },
-    }),
-    prisma.account.upsert({
-      where: { id: 'tunai' },
-      update: {},
-      create: {
-        id: 'tunai',
-        userId: user.id,
+    prisma.account.create({
+      data: {
+        userId: demoUser.id,
         name: 'Tunai',
         type: 'CASH',
-        balance: 200000,
+        balance: 500000,
         currency: 'IDR',
-        icon: 'wallet',
+        icon: 'banknote',
         color: '#F59E0B',
       },
     }),
+    prisma.account.create({
+      data: {
+        userId: demoUser.id,
+        name: 'Kartu Kredit',
+        type: 'CREDIT_CARD',
+        balance: -2500000,
+        currency: 'IDR',
+        icon: 'credit-card',
+        color: '#EF4444',
+      },
+    }),
   ]);
-  console.log('Created accounts');
 
-  // Get categories
-  const categories = await prisma.category.findMany({
-    where: { userId: user.id },
-  });
+  console.log('Created', accounts.length, 'accounts');
 
-  const salaryCategory = categories.find((c) => c.name === 'Gaji')!;
-  const foodCategory = categories.find((c) => c.name === 'Makanan')!;
-  const transportCategory = categories.find((c) => c.name === 'Transportasi')!;
-  const entertainmentCategory = categories.find((c) => c.name === 'Hiburan')!;
+  const incomeCategories = await Promise.all([
+    prisma.category.create({
+      data: {
+        userId: demoUser.id,
+        name: 'Gaji',
+        type: 'INCOME',
+        icon: 'briefcase',
+        color: '#10B981',
+        isDefault: true,
+      },
+    }),
+    prisma.category.create({
+      data: {
+        userId: demoUser.id,
+        name: 'Freelance',
+        type: 'INCOME',
+        icon: 'laptop',
+        color: '#3B82F6',
+        isDefault: true,
+      },
+    }),
+    prisma.category.create({
+      data: {
+        userId: demoUser.id,
+        name: 'Investasi',
+        type: 'INCOME',
+        icon: 'trending-up',
+        color: '#8B5CF6',
+        isDefault: true,
+      },
+    }),
+  ]);
 
-  // Create transactions
-  const transactions = [
-    {
-      userId: user.id,
-      accountId: 'bank-bca',
-      categoryId: salaryCategory.id,
-      type: 'INCOME' as const,
-      amount: 8000000,
-      description: 'Gaji Bulanan',
-      date: new Date('2026-04-01'),
-    },
-    {
-      userId: user.id,
-      accountId: 'gopay',
-      categoryId: foodCategory.id,
-      type: 'EXPENSE' as const,
-      amount: 45000,
-      description: 'Makan Siang',
-      date: new Date('2026-04-02'),
-    },
-    {
-      userId: user.id,
-      accountId: 'ovo',
-      categoryId: transportCategory.id,
-      type: 'EXPENSE' as const,
-      amount: 25000,
-      description: 'Grab ke Kantor',
-      date: new Date('2026-04-02'),
-    },
-    {
-      userId: user.id,
-      accountId: 'bank-bca',
-      categoryId: entertainmentCategory.id,
-      type: 'EXPENSE' as const,
-      amount: 149000,
-      description: 'Netflix',
-      date: new Date('2026-04-03'),
-    },
-    {
-      userId: user.id,
-      accountId: 'bank-bca',
-      categoryId: salaryCategory.id,
-      type: 'INCOME' as const,
-      amount: 2500000,
-      description: 'Freelance Project',
-      date: new Date('2026-04-04'),
-    },
-    {
-      userId: user.id,
-      accountId: 'bank-bca',
-      categoryId: foodCategory.id,
-      type: 'EXPENSE' as const,
-      amount: 150000,
-      description: 'Belanja Mingguan',
-      date: new Date('2026-04-05'),
-    },
-    {
-      userId: user.id,
-      accountId: 'tunai',
-      categoryId: foodCategory.id,
-      type: 'EXPENSE' as const,
-      amount: 30000,
-      description: 'Makan Malam',
-      date: new Date('2026-04-05'),
-    },
-  ];
+  const expenseCategories = await Promise.all([
+    prisma.category.create({
+      data: {
+        userId: demoUser.id,
+        name: 'Makanan',
+        type: 'EXPENSE',
+        icon: 'utensils',
+        color: '#EF4444',
+        isDefault: true,
+      },
+    }),
+    prisma.category.create({
+      data: {
+        userId: demoUser.id,
+        name: 'Transportasi',
+        type: 'EXPENSE',
+        icon: 'car',
+        color: '#F59E0B',
+        isDefault: true,
+      },
+    }),
+    prisma.category.create({
+      data: {
+        userId: demoUser.id,
+        name: 'Belanja',
+        type: 'EXPENSE',
+        icon: 'shopping-bag',
+        color: '#EC4899',
+        isDefault: true,
+      },
+    }),
+    prisma.category.create({
+      data: {
+        userId: demoUser.id,
+        name: 'Tagihan',
+        type: 'EXPENSE',
+        icon: 'receipt',
+        color: '#6366F1',
+        isDefault: true,
+      },
+    }),
+    prisma.category.create({
+      data: {
+        userId: demoUser.id,
+        name: 'Hiburan',
+        type: 'EXPENSE',
+        icon: 'gamepad-2',
+        color: '#14B8A6',
+        isDefault: true,
+      },
+    }),
+    prisma.category.create({
+      data: {
+        userId: demoUser.id,
+        name: 'Kesehatan',
+        type: 'EXPENSE',
+        icon: 'heart',
+        color: '#F43F5E',
+        isDefault: true,
+      },
+    }),
+  ]);
 
-  for (const tx of transactions) {
-    await prisma.transaction.create({
-      data: tx,
-    });
-  }
-  console.log('Created transactions');
+  console.log('Created categories');
 
-  // Create budgets
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const transactions = await Promise.all([
+    prisma.transaction.create({
+      data: {
+        userId: demoUser.id,
+        accountId: accounts[0].id,
+        categoryId: incomeCategories[0].id,
+        type: 'INCOME',
+        amount: 12000000,
+        description: 'Gaji Bulan Mei',
+        date: new Date(now.getFullYear(), now.getMonth(), 1),
+      },
+    }),
+    prisma.transaction.create({
+      data: {
+        userId: demoUser.id,
+        accountId: accounts[0].id,
+        categoryId: expenseCategories[0].id,
+        type: 'EXPENSE',
+        amount: 250000,
+        description: 'Makan Siang & Malam',
+        date: new Date(now.getFullYear(), now.getMonth(), 2),
+      },
+    }),
+    prisma.transaction.create({
+      data: {
+        userId: demoUser.id,
+        accountId: accounts[1].id,
+        categoryId: expenseCategories[1].id,
+        type: 'EXPENSE',
+        amount: 150000,
+        description: 'Ojol ke Kantor',
+        date: new Date(now.getFullYear(), now.getMonth(), 3),
+      },
+    }),
+    prisma.transaction.create({
+      data: {
+        userId: demoUser.id,
+        accountId: accounts[0].id,
+        categoryId: expenseCategories[2].id,
+        type: 'EXPENSE',
+        amount: 500000,
+        description: 'Belanja Bulanan',
+        date: new Date(now.getFullYear(), now.getMonth(), 5),
+      },
+    }),
+    prisma.transaction.create({
+      data: {
+        userId: demoUser.id,
+        accountId: accounts[3].id,
+        categoryId: expenseCategories[3].id,
+        type: 'EXPENSE',
+        amount: 1500000,
+        description: 'Pembayaran Kartu Kredit',
+        date: new Date(now.getFullYear(), now.getMonth(), 10),
+      },
+    }),
+    prisma.transaction.create({
+      data: {
+        userId: demoUser.id,
+        accountId: accounts[0].id,
+        categoryId: incomeCategories[1].id,
+        type: 'INCOME',
+        amount: 3000000,
+        description: 'Proyek Website',
+        date: new Date(now.getFullYear(), now.getMonth(), 12),
+      },
+    }),
+    prisma.transaction.create({
+      data: {
+        userId: demoUser.id,
+        accountId: accounts[2].id,
+        categoryId: expenseCategories[4].id,
+        type: 'EXPENSE',
+        amount: 200000,
+        description: 'Nonton Film',
+        date: new Date(now.getFullYear(), now.getMonth(), 15),
+      },
+    }),
+    prisma.transaction.create({
+      data: {
+        userId: demoUser.id,
+        accountId: accounts[0].id,
+        accountId: accounts[0].id,
+        categoryId: expenseCategories[3].id,
+        type: 'EXPENSE',
+        amount: 350000,
+        description: 'Listrik & Internet',
+        date: new Date(now.getFullYear(), now.getMonth(), 20),
+      },
+    }),
+  ]);
+
+  console.log('Created', transactions.length, 'transactions');
+
   const budgets = await Promise.all([
     prisma.budget.create({
       data: {
-        userId: user.id,
-        categoryId: foodCategory.id,
+        userId: demoUser.id,
+        categoryId: expenseCategories[0].id,
         amount: 2000000,
+        spent: 250000,
         period: 'MONTHLY',
-        startDate: new Date('2026-04-01'),
+        startDate: startOfMonth,
+        endDate: new Date(now.getFullYear(), now.getMonth() + 1, 0),
         warningThreshold: 80,
         isActive: true,
       },
     }),
     prisma.budget.create({
       data: {
-        userId: user.id,
-        categoryId: transportCategory.id,
+        userId: demoUser.id,
+        categoryId: expenseCategories[1].id,
         amount: 500000,
+        spent: 150000,
         period: 'MONTHLY',
-        startDate: new Date('2026-04-01'),
+        startDate: startOfMonth,
+        endDate: new Date(now.getFullYear(), now.getMonth() + 1, 0),
         warningThreshold: 80,
         isActive: true,
       },
     }),
     prisma.budget.create({
       data: {
-        userId: user.id,
-        categoryId: entertainmentCategory.id,
-        amount: 300000,
+        userId: demoUser.id,
+        categoryId: expenseCategories[2].id,
+        amount: 1000000,
+        spent: 500000,
         period: 'MONTHLY',
-        startDate: new Date('2026-04-01'),
+        startDate: startOfMonth,
+        endDate: new Date(now.getFullYear(), now.getMonth() + 1, 0),
         warningThreshold: 80,
         isActive: true,
       },
     }),
   ]);
-  console.log('Created budgets');
 
-  // Create goals
+  console.log('Created', budgets.length, 'budgets');
+
   const goals = await Promise.all([
     prisma.goal.create({
       data: {
-        userId: user.id,
+        userId: demoUser.id,
         name: 'Liburan ke Jepang',
-        targetAmount: 50000000,
-        currentAmount: 35000000,
-        deadline: new Date('2026-12-31'),
-        icon: '✈️',
-        color: '#3B82F6',
+        targetAmount: 25000000,
+        currentAmount: 8500000,
+        deadline: new Date(now.getFullYear() + 1, 5, 1),
+        icon: 'plane',
+        color: '#0EA5E9',
         status: 'ACTIVE',
+        isLocked: false,
+        source: 'MANUAL',
       },
     }),
     prisma.goal.create({
       data: {
-        userId: user.id,
-        name: 'DP Rumah',
-        targetAmount: 200000000,
-        currentAmount: 85000000,
-        deadline: new Date('2027-06-30'),
-        icon: '🏠',
+        userId: demoUser.id,
+        name: 'Beli Laptop Baru',
+        targetAmount: 15000000,
+        currentAmount: 7000000,
+        deadline: new Date(now.getFullYear(), now.getMonth() + 6, 1),
+        icon: 'laptop',
         color: '#10B981',
         status: 'ACTIVE',
+        isLocked: false,
+        source: 'MANUAL',
+      },
+    }),
+    prisma.goal.create({
+      data: {
+        userId: demoUser.id,
+        name: 'Dana Darurat',
+        targetAmount: 30000000,
+        currentAmount: 18000000,
+        deadline: new Date(now.getFullYear() + 2, 0, 1),
+        icon: 'shield',
+        color: '#F59E0B',
+        status: 'ACTIVE',
+        isLocked: true,
+        source: 'MANUAL',
       },
     }),
   ]);
-  console.log('Created goals');
 
-  // Create plan
+  console.log('Created', goals.length, 'goals');
+
+  await Promise.all([
+    prisma.goalContribution.create({
+      data: {
+        goalId: goals[0].id,
+        amount: 5000000,
+        date: new Date(now.getFullYear(), now.getMonth() - 1, 15),
+        note: 'Tabungan bulanan',
+        accountId: accounts[0].id,
+      },
+    }),
+    prisma.goalContribution.create({
+      data: {
+        goalId: goals[0].id,
+        amount: 3500000,
+        date: new Date(now.getFullYear(), now.getMonth(), 10),
+        note: 'Bonus proyek',
+        accountId: accounts[0].id,
+      },
+    }),
+    prisma.goalContribution.create({
+      data: {
+        goalId: goals[1].id,
+        amount: 7000000,
+        date: new Date(now.getFullYear(), now.getMonth(), 5),
+        note: 'Dari tabungan',
+        accountId: accounts[0].id,
+      },
+    }),
+  ]);
+
+  console.log('Created goal contributions');
+
   const plan = await prisma.plan.create({
     data: {
-      userId: user.id,
-      name: 'Dana Darurat',
-      description: 'Membangun dana darurat 6 bulan pengeluaran',
-      startDate: new Date('2026-01-01'),
-      endDate: new Date('2027-12-31'),
+      userId: demoUser.id,
+      name: 'Plan Tabungan 2026',
+      description: 'Rencana tabungan untuk mencapai goal tahun 2026',
+      startDate: startOfMonth,
+      endDate: new Date(now.getFullYear() + 1, 11, 31),
       status: 'ACTIVE',
-      milestones: {
-        create: [
-          {
-            title: 'Set up auto-debit bulanan',
-            targetDate: new Date('2026-01-15'),
-            isCompleted: true,
-            order: 0,
-          },
-          {
-            title: 'Kumpulkan 3 bulan pengeluaran',
-            targetDate: new Date('2026-06-30'),
-            isCompleted: true,
-            order: 1,
-          },
-          {
-            title: 'Kumpulkan 6 bulan pengeluaran',
-            targetDate: new Date('2026-12-31'),
-            isCompleted: false,
-            order: 2,
-          },
-        ],
-      },
     },
   });
-  console.log('Created plan');
 
-  console.log('✅ Seeding completed!');
-  console.log('\nTest credentials:');
-  console.log('  Email: demo@example.com');
-  console.log('  Password: password123');
+  await Promise.all([
+    prisma.planMilestone.create({
+      data: {
+        planId: plan.id,
+        title: 'Tabungan 30%',
+        description: 'Capai 30% dari total target',
+        targetDate: new Date(now.getFullYear(), now.getMonth() + 3, 31),
+        targetAmount: 21000000,
+        isCompleted: false,
+        order: 0,
+      },
+    }),
+    prisma.planMilestone.create({
+      data: {
+        planId: plan.id,
+        title: 'Tabungan 60%',
+        description: 'Capai 60% dari total target',
+        targetDate: new Date(now.getFullYear(), now.getMonth() + 6, 31),
+        targetAmount: 42000000,
+        isCompleted: false,
+        order: 1,
+      },
+    }),
+    prisma.planMilestone.create({
+      data: {
+        planId: plan.id,
+        title: 'Capai Semua Goal',
+        description: 'Semua goal tercapai',
+        targetDate: new Date(now.getFullYear() + 1, 11, 31),
+        targetAmount: 70000000,
+        isCompleted: false,
+        order: 2,
+      },
+    }),
+  ]);
+
+  console.log('Created plan with milestones');
+
+  const reminders = await Promise.all([
+    prisma.reminder.create({
+      data: {
+        userId: demoUser.id,
+        title: 'Budget Makanan Mingguan',
+        description: 'Cek pengeluaran makanan minggu ini',
+        type: 'RECURRING',
+        date: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 9, 0),
+        isActive: true,
+      },
+    }),
+    prisma.reminder.create({
+      data: {
+        userId: demoUser.id,
+        title: 'Review Keuangan Bulanan',
+        description: 'Cek progress bulan ini',
+        type: 'RECURRING',
+        date: new Date(now.getFullYear(), now.getMonth() + 1, 1, 10, 0),
+        isActive: true,
+      },
+    }),
+  ]);
+
+  console.log('Created', reminders.length, 'reminders');
+
+  const notifications = await Promise.all([
+    prisma.notification.create({
+      data: {
+        userId: demoUser.id,
+        title: 'Selamat Datang!',
+        message: 'Akun demo berhasil dibuat. Nikmati fitur pengelolaan keuangan kami.',
+        type: 'SYSTEM',
+        isRead: false,
+      },
+    }),
+    prisma.notification.create({
+      data: {
+        userId: demoUser.id,
+        title: 'Budget Terpenuhi',
+        message: 'Selamat! Budget makanan bulan ini telah terpenuhi dengan baik.',
+        type: 'BUDGET_WARNING',
+        isRead: false,
+      },
+    }),
+  ]);
+
+  console.log('Created', notifications.length, 'notifications');
+
+  console.log('\n=== Demo Account Created ===');
+  console.log('Email: demo@example.com');
+  console.log('Password: demo123');
+  console.log('=============================\n');
 }
 
 main()
