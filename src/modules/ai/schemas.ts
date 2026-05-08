@@ -1,8 +1,9 @@
 import { z } from 'zod';
 
 export const generatePlanSchema = z.object({
-  monthlyIncome: z.number().positive('Income harus positif'),
+  monthlyIncome: z.number().positive(),
   currency: z.string().default('IDR'),
+  dependents: z.number().int().min(0).default(0),
 });
 
 export const predictSpendingSchema = z.object({

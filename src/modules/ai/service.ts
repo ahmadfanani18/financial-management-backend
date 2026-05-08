@@ -25,7 +25,7 @@ interface SavingSuggestion {
 
 export class AIService {
   async generatePlan(userId: string, input: GeneratePlanInput) {
-    const { monthlyIncome, currency } = input;
+    const { monthlyIncome, currency, dependents } = input;
     
     const needs = Math.round(monthlyIncome * 0.50);
     const wants = Math.round(monthlyIncome * 0.30);
@@ -54,19 +54,95 @@ export class AIService {
       deadline: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
     };
 
+    const estimatedExpense = needs + wants * 0.5;
+    const milestones = this.generateDynamicMilestones(monthlyIncome, estimatedExpense, dependents);
+
     return {
-      summary: {
-        monthlyIncome,
-        needs,
-        wants,
-        savings,
-        currency,
-      },
+      summary: { monthlyIncome, needs, wants, savings, currency },
       expenses: expenseAllocations,
       savings: savingsAllocation,
+      milestones,
       suggestedGoal,
       message: `Berdasarkan aturan 50/30/20, Anda bisa mengalokasikan ${needs.toLocaleString('id-ID')} untuk kebutuhan (50%), ${wants.toLocaleString('id-ID')} untuk keinginan (30%), dan ${savings.toLocaleString('id-ID')} untuk tabungan (20%).`,
     };
+  }
+
+  private generateDynamicMilestones(monthlyIncome: number, estimatedExpense: number, dependents: number) {
+    const milestones = [];
+    const now = Date.now();
+    const oneYear = 365 * 24 * 60 * 60 * 1000;
+    const sixMonths = 180 * 24 * 60 * 60 * 1000;
+    const threeMonths = 90 * 24 * 60 * 60 * 1000;
+
+    const emergencyFundTarget = estimatedExpense * 6;
+    milestones.push({
+      id: `temp-${milestones.length}`,
+      title: 'Dana Darurat',
+      description: `Tujuan: ${emergencyFundTarget.toLocaleString('id-ID')} (~${Math.round((emergencyFundTarget / monthlyIncome) * 100)}% dari pendapatan 6 bulan)`,
+      targetDate: new Date(now + oneYear).toISOString(),
+      targetAmount: emergencyFundTarget,
+      isSelected: false,
+    });
+
+    if (monthlyIncome >= 10000000) {
+      const investmentTarget = monthlyIncome * 0.1 * 12;
+      milestones.push({
+        id: `temp-${milestones.length}`,
+        title: 'Mulai Investasi',
+        description: `Investasi ${Math.round(monthlyIncome * 0.1).toLocaleString('id-ID')}/bulan`,
+        targetDate: new Date(now + sixMonths).toISOString(),
+        targetAmount: investmentTarget,
+        isSelected: false,
+      });
+    }
+
+    if (dependents > 0) {
+      const educationTarget = monthlyIncome * 0.15 * 12 * 5;
+      milestones.push({
+        id: `temp-${milestones.length}`,
+        title: 'Tabungan Pendidikan Anak',
+        description: `Tabungan ${Math.round(monthlyIncome * 0.15).toLocaleString('id-ID')}/bulan untuk ${dependents} anak`,
+        targetDate: new Date(now + oneYear * 5).toISOString(),
+        targetAmount: educationTarget,
+        isSelected: false,
+      });
+    }
+
+    if (monthlyIncome * 0.3 > 2000000) {
+      const reductionTarget = (monthlyIncome * 0.3 - 2000000) * 0.2;
+      milestones.push({
+        id: `temp-${milestones.length}`,
+        title: 'Kurangi Pengeluaran Hiburan',
+        description: `Kurangi ${Math.round(reductionTarget).toLocaleString('id-ID')}/bulan dari pengeluaran wants`,
+        targetDate: new Date(now + threeMonths).toISOString(),
+        targetAmount: reductionTarget * 3,
+        isSelected: false,
+      });
+    }
+
+    const annualSavingsTarget = monthlyIncome * 0.2 * 12;
+    milestones.push({
+      id: `temp-${milestones.length}`,
+      title: 'Tabungan Tahunan',
+      description: `Tabungan ${Math.round(monthlyIncome * 0.2).toLocaleString('id-ID')}/bulan`,
+      targetDate: new Date(now + oneYear).toISOString(),
+      targetAmount: annualSavingsTarget,
+      isSelected: false,
+    });
+
+    if (monthlyIncome >= 20000000) {
+      const houseTarget = monthlyIncome * 0.3 * 24;
+      milestones.push({
+        id: `temp-${milestones.length}`,
+        title: 'Tabungan Rumah',
+        description: `Uang muka rumah - tabungan ${Math.round(monthlyIncome * 0.3).toLocaleString('id-ID')}/bulan`,
+        targetDate: new Date(now + oneYear * 2).toISOString(),
+        targetAmount: houseTarget,
+        isSelected: false,
+      });
+    }
+
+    return milestones;
   }
 
   async predictSpending(userId: string, input: PredictSpendingInput) {
