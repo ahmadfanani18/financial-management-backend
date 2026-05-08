@@ -84,19 +84,21 @@ private generateDynamicMilestones(monthlyIncome: number, estimatedExpense: numbe
         isSelected: false,
       });
 
-      // Pool of potential milestones
-      const potentialMilestones = [
+      // Pool of potential milestones with conditions
+      const potentialMilestones: Array<{ title: string; desc: string; amount: number; months: number; condition?: boolean }> = [
         {
           title: 'Mulai Investasi',
           desc: `Investasi ${Math.round(monthlyIncome * 0.1).toLocaleString('id-ID')}/bulan`,
           amount: monthlyIncome * 0.1 * 12,
           months: 6,
+          condition: monthlyIncome >= 10000000,
         },
         {
           title: 'Tabungan Pendidikan Anak',
           desc: `Tabungan ${Math.round(monthlyIncome * 0.15).toLocaleString('id-ID')}/bulan untuk ${dependents} anak`,
           amount: monthlyIncome * 0.15 * 12 * 5,
           months: 60,
+          condition: dependents > 0,
         },
         {
           title: 'Kurangi Pengeluaran Hiburan',
@@ -109,30 +111,35 @@ private generateDynamicMilestones(monthlyIncome: number, estimatedExpense: numbe
           desc: `Tabungan vacation tahun depan`,
           amount: monthlyIncome * 0.08 * 8,
           months: 8,
+          condition: monthlyIncome >= 8000000,
         },
         {
           title: 'Tabungan Gadget Baru',
           desc: `Upgrade smartphone/laptop`,
           amount: monthlyIncome * 0.15 * 4,
           months: 4,
+          condition: monthlyIncome >= 5000000,
         },
         {
           title: 'Tabungan Rumah',
           desc: `Uang muka rumah`,
           amount: monthlyIncome * 0.25 * 20,
           months: 20,
+          condition: monthlyIncome >= 15000000,
         },
         {
           title: 'Tabungan Mobil',
           desc: `Uang muka kendaraan`,
           amount: monthlyIncome * 0.2 * 15,
           months: 15,
+          condition: monthlyIncome >= 10000000,
         },
         {
           title: 'Tabungan Pensiun Dini',
           desc: `Siap pensiun lebih awal`,
           amount: monthlyIncome * 0.15 * 12 * 3,
           months: 36,
+          condition: monthlyIncome >= 8000000,
         },
         {
           title: 'Tabungan Kesehatan',
@@ -145,12 +152,14 @@ private generateDynamicMilestones(monthlyIncome: number, estimatedExpense: numbe
           desc: `Modal usaha sampingan`,
           amount: monthlyIncome * 0.2 * 6,
           months: 6,
+          condition: monthlyIncome >= 10000000,
         },
         {
           title: 'Tabungan Pengembangan Diri',
           desc: `Kursus/sertifikasi`,
           amount: monthlyIncome * 0.1 * 6,
           months: 6,
+          condition: monthlyIncome >= 5000000,
         },
         {
           title: 'Tabungan Tahunan',
@@ -163,12 +172,14 @@ private generateDynamicMilestones(monthlyIncome: number, estimatedExpense: numbe
           desc: `Premi asuransi tahunan`,
           amount: monthlyIncome * 0.05 * 12,
           months: 12,
+          condition: monthlyIncome >= 6000000,
         },
         {
           title: 'Kurangi Langganan',
           desc: `Hemat subscription tidak perlu`,
           amount: monthlyIncome * 0.02 * 6,
           months: 6,
+          condition: monthlyIncome >= 5000000,
         },
         {
           title: 'Tabungan Belanja',
@@ -178,8 +189,9 @@ private generateDynamicMilestones(monthlyIncome: number, estimatedExpense: numbe
         },
       ];
 
-      // Shuffle and pick random milestones
-      const shuffled = potentialMilestones.sort(() => Math.random() - 0.5);
+      // Filter by condition and shuffle
+      const availableMilestones = potentialMilestones.filter(m => m.condition === undefined || m.condition);
+      const shuffled = availableMilestones.sort(() => Math.random() - 0.5);
       const picked = shuffled.slice(0, targetCount);
 
       for (const m of picked) {
