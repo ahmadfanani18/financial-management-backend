@@ -71,9 +71,7 @@ private generateDynamicMilestones(monthlyIncome: number, estimatedExpense: numbe
       const milestones = [];
       const now = Date.now();
       const oneYear = 365 * 24 * 60 * 60 * 1000;
-      const sixMonths = 180 * 24 * 60 * 60 * 1000;
-      const threeMonths = 90 * 24 * 60 * 60 * 1000;
-      const random = Math.random();
+      const targetCount = 3 + Math.floor(Math.random() * 3); // Random 3-5 milestones
 
       // Always include Emergency Fund
       const emergencyFundTarget = estimatedExpense * 6;
@@ -86,198 +84,117 @@ private generateDynamicMilestones(monthlyIncome: number, estimatedExpense: numbe
         isSelected: false,
       });
 
-      // Pool of potential milestones with different conditions
-      const potentialMilestones: Array<{
-        condition: boolean;
-        title: string;
-        description: string;
-        targetAmount: number;
-        months: number;
-      }> = [
-        // Investment - income >= 10jt
+      // Pool of potential milestones
+      const potentialMilestones = [
         {
-          condition: monthlyIncome >= 10000000,
           title: 'Mulai Investasi',
-          description: `Investasi ${Math.round(monthlyIncome * 0.1).toLocaleString('id-ID')}/bulan untuk masa depan`,
-          targetAmount: monthlyIncome * 0.1 * 12,
+          desc: `Investasi ${Math.round(monthlyIncome * 0.1).toLocaleString('id-ID')}/bulan`,
+          amount: monthlyIncome * 0.1 * 12,
           months: 6,
         },
-        // Education - if has dependents
         {
-          condition: dependents > 0,
           title: 'Tabungan Pendidikan Anak',
-          description: `Tabungan ${Math.round(monthlyIncome * 0.15).toLocaleString('id-ID')}/bulan untuk ${dependents} anak`,
-          targetAmount: monthlyIncome * 0.15 * 12 * 5,
+          desc: `Tabungan ${Math.round(monthlyIncome * 0.15).toLocaleString('id-ID')}/bulan untuk ${dependents} anak`,
+          amount: monthlyIncome * 0.15 * 12 * 5,
           months: 60,
         },
-        // Reduce entertainment spending
         {
-          condition: monthlyIncome * 0.3 > 2000000,
           title: 'Kurangi Pengeluaran Hiburan',
-          description: `Kurangi ${Math.round((monthlyIncome * 0.3 - 2000000) * 0.2).toLocaleString('id-ID')}/bulan dari hiburan`,
-          targetAmount: (monthlyIncome * 0.3 - 2000000) * 0.2 * 3,
-          months: 3,
+          desc: `Hemat ${Math.round(monthlyIncome * 0.03).toLocaleString('id-ID')}/bulan dari hiburan`,
+          amount: monthlyIncome * 0.03 * 6,
+          months: 6,
         },
-        // House - high income
         {
-          condition: monthlyIncome >= 20000000,
-          title: 'Tabungan Rumah',
-          description: `Uang muka rumah - tabungan ${Math.round(monthlyIncome * 0.3).toLocaleString('id-ID')}/bulan`,
-          targetAmount: monthlyIncome * 0.3 * 24,
-          months: 24,
-        },
-        // Vacation - random for medium-high income
-        {
-          condition: monthlyIncome >= 8000000 && random > 0.3,
           title: 'Tabungan Liburan',
-          description: `Tabungan untuk pergi vacation ${Math.round(monthlyIncome * 0.05 * 6).toLocaleString('id-ID')} (6 bulan)`,
-          targetAmount: monthlyIncome * 0.05 * 6,
-          months: 6,
-        },
-        // Gadget - random
-        {
-          condition: monthlyIncome >= 5000000 && random > 0.5,
-          title: 'Tabungan Gadget Baru',
-          description: `Tabungan untuk upgrade smartphone/laptop ${Math.round(monthlyIncome * 0.15 * 4).toLocaleString('id-ID')}`,
-          targetAmount: monthlyIncome * 0.15 * 4,
-          months: 4,
-        },
-        // Car - high income, random
-        {
-          condition: monthlyIncome >= 15000000 && random > 0.6,
-          title: 'Tabungan Mobil',
-          description: `Uang muka mobil - tabungan ${Math.round(monthlyIncome * 0.2 * 18).toLocaleString('id-ID')}`,
-          targetAmount: monthlyIncome * 0.2 * 18,
-          months: 18,
-        },
-        // Wedding - random, for younger people
-        {
-          condition: monthlyIncome >= 6000000 && random > 0.4,
-          title: 'Tabungan Pernikahan',
-          description: `Tabungan untuk biaya pernikahan ideal`,
-          targetAmount: monthlyIncome * 0.2 * 12,
-          months: 12,
-        },
-        // Emergency medical
-        {
-          condition: random > 0.3,
-          title: 'Tabungan Kesehatan',
-          description: `Dana darurat medis - target ${Math.round(estimatedExpense * 3).toLocaleString('id-ID')}`,
-          targetAmount: estimatedExpense * 3,
-          months: 6,
-        },
-        // Retirement
-        {
-          condition: monthlyIncome >= 8000000 && random > 0.5,
-          title: 'Tabungan Pensiun Dini',
-          description: `Siap pensiun lebih awal - tabungan ${Math.round(monthlyIncome * 0.15 * 12).toLocaleString('id-ID')}/tahun`,
-          targetAmount: monthlyIncome * 0.15 * 12 * 5,
-          months: 60,
-        },
-        // Business/freelance fund
-        {
-          condition: monthlyIncome >= 10000000 && random > 0.7,
-          title: 'Tabungan Bisnis',
-          description: `Modal usaha untuk mulai bisnis sampingan`,
-          targetAmount: monthlyIncome * 0.25 * 8,
+          desc: `Tabungan vacation tahun depan`,
+          amount: monthlyIncome * 0.08 * 8,
           months: 8,
         },
-        // Charity/donations
         {
-          condition: random > 0.6,
-          title: 'Tabungan Amal',
-          description: `Tabungan untuk bersedekah/donasi bulanan`,
-          targetAmount: monthlyIncome * 0.02 * 12,
-          months: 12,
+          title: 'Tabungan Gadget Baru',
+          desc: `Upgrade smartphone/laptop`,
+          amount: monthlyIncome * 0.15 * 4,
+          months: 4,
         },
-        // Upgrade skills/course
         {
-          condition: monthlyIncome >= 5000000 && random > 0.4,
+          title: 'Tabungan Rumah',
+          desc: `Uang muka rumah`,
+          amount: monthlyIncome * 0.25 * 20,
+          months: 20,
+        },
+        {
+          title: 'Tabungan Mobil',
+          desc: `Uang muka kendaraan`,
+          amount: monthlyIncome * 0.2 * 15,
+          months: 15,
+        },
+        {
+          title: 'Tabungan Pensiun Dini',
+          desc: `Siap pensiun lebih awal`,
+          amount: monthlyIncome * 0.15 * 12 * 3,
+          months: 36,
+        },
+        {
+          title: 'Tabungan Kesehatan',
+          desc: `Dana darurat medis`,
+          amount: estimatedExpense * 4,
+          months: 4,
+        },
+        {
+          title: 'Tabungan Bisnis',
+          desc: `Modal usaha sampingan`,
+          amount: monthlyIncome * 0.2 * 6,
+          months: 6,
+        },
+        {
           title: 'Tabungan Pengembangan Diri',
-          description: `Budget untuk kursus/sertifikasi professional`,
-          targetAmount: monthlyIncome * 0.08 * 6,
+          desc: `Kursus/sertifikasi`,
+          amount: monthlyIncome * 0.1 * 6,
           months: 6,
         },
-        // Home renovation
         {
-          condition: monthlyIncome >= 8000000 && random > 0.5,
-          title: 'Tabungan Renovasi Rumah',
-          description: `Tabungan untuk renovasi/upgrade rumah`,
-          targetAmount: monthlyIncome * 0.2 * 10,
-          months: 10,
-        },
-        // Kids birthday/party
-        {
-          condition: dependents > 0 && random > 0.5,
-          title: 'Tabungan Acara Anak',
-          description: `Tabungan untuk acara ulang tahun/sekolah anak`,
-          targetAmount: monthlyIncome * 0.05 * 6,
-          months: 6,
-        },
-        // Emergency car fund
-        {
-          condition: random > 0.6,
-          title: 'Tabungan Servis Kendaraan',
-          description: `Tabungan untuk servis mobil/motor rutin`,
-          targetAmount: monthlyIncome * 0.03 * 6,
-          months: 6,
-        },
-        // Insurance fund
-        {
-          condition: monthlyIncome >= 7000000 && random > 0.4,
-          title: 'Tabungan Asuransi',
-          description: `Dana untukpremi asuransi tahunan`,
-          targetAmount: monthlyIncome * 0.05 * 12,
+          title: 'Tabungan Tahunan',
+          desc: `Tabungan untuk kebutuhan tahun depan`,
+          amount: monthlyIncome * 0.2 * 12,
           months: 12,
         },
-        // Subscriptions optimization
         {
-          condition: monthlyIncome >= 5000000 && random > 0.5,
+          title: 'Tabungan Asuransi',
+          desc: `Premi asuransi tahunan`,
+          amount: monthlyIncome * 0.05 * 12,
+          months: 12,
+        },
+        {
           title: 'Kurangi Langganan',
-          description: `Hemat dari subscriptions tidak perlu - target ${Math.round(monthlyIncome * 0.02 * 6).toLocaleString('id-ID')}`,
-          targetAmount: monthlyIncome * 0.02 * 6,
+          desc: `Hemat subscription tidak perlu`,
+          amount: monthlyIncome * 0.02 * 6,
           months: 6,
         },
-        // Grocery savings
         {
-          condition: random > 0.4,
-          title: 'Tabungan Belanja Bulanan',
-          description: `Hemat dari belanja groceries - target ${Math.round(monthlyIncome * 0.03 * 3).toLocaleString('id-ID')}`,
-          targetAmount: monthlyIncome * 0.03 * 3,
-          months: 3,
+          title: 'Tabungan Belanja',
+          desc: `Hemat groceries bulanan`,
+          amount: monthlyIncome * 0.03 * 4,
+          months: 4,
         },
       ];
 
-      // Filter conditions and add milestones
-      for (const m of potentialMilestones) {
-        if (m.condition) {
-          const monthMs = 30 * 24 * 60 * 60 * 1000 * m.months;
-          milestones.push({
-            id: `temp-${milestones.length}`,
-            title: m.title,
-            description: m.description,
-            targetDate: new Date(now + monthMs).toISOString(),
-            targetAmount: Math.round(m.targetAmount),
-            isSelected: false,
-          });
-        }
+      // Shuffle and pick random milestones
+      const shuffled = potentialMilestones.sort(() => Math.random() - 0.5);
+      const picked = shuffled.slice(0, targetCount);
+
+      for (const m of picked) {
+        const monthMs = 30 * 24 * 60 * 60 * 1000 * m.months;
+        milestones.push({
+          id: `temp-${milestones.length}`,
+          title: m.title,
+          description: m.desc,
+          targetDate: new Date(now + monthMs).toISOString(),
+          targetAmount: Math.round(m.amount),
+          isSelected: false,
+        });
       }
 
-      // Always add annual savings
-      const annualSavingsTarget = monthlyIncome * 0.2 * 12;
-      milestones.push({
-        id: `temp-${milestones.length}`,
-        title: 'Tabungan Tahunan',
-        description: `Tabungan ${Math.round(monthlyIncome * 0.2).toLocaleString('id-ID')}/bulan untuk kebutuhan tahun depan`,
-        targetDate: new Date(now + oneYear).toISOString(),
-        targetAmount: annualSavingsTarget,
-        isSelected: false,
-      });
-
-      // Shuffle milestones (except first one - emergency fund should stay first)
-      const coreMilestone = milestones[0];
-      const shuffledRest = milestones.slice(1).sort(() => Math.random() - 0.5);
-      return [coreMilestone, ...shuffledRest];
+      return milestones;
     }
 
   async predictSpending(userId: string, input: PredictSpendingInput) {
