@@ -318,48 +318,7 @@ async predictSpending(userId: string, input: PredictSpendingInput) {
       period: `Bulan ${new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`,
       message,
       insufficientData: false,
-    };
-  }
-
-    const categoryMap: Record<string, number[]> = {};
-    
-    transactions.forEach(t => {
-      const catName = t.category?.name || 'Other';
-      if (!categoryMap[catName]) {
-        categoryMap[catName] = [];
-      }
-      categoryMap[catName].push(Number(t.amount));
-    });
-
-    const predictions: SpendingPrediction[] = Object.entries(categoryMap).map(([category, amounts]) => {
-      const avg = amounts.reduce((a, b) => a + b, 0) / amounts.length;
-      const lastMonth = amounts.slice(-Math.min(amounts.length, 4));
-      const lastAvg = lastMonth.reduce((a, b) => a + b, 0) / lastMonth.length;
-      const prevMonth = amounts.slice(-Math.min(amounts.length, 8), -4);
-      const prevAvg = prevMonth.length > 0 ? prevMonth.reduce((a, b) => a + b, 0) / prevMonth.length : lastAvg;
-      
-      const change = (lastAvg - prevAvg) / (prevAvg || 1);
-      const trend = change > 0.1 ? 'increasing' : change < -0.1 ? 'decreasing' : 'stable';
-      const confidence = amounts.length >= 20 ? 'high' : amounts.length >= 10 ? 'medium' : 'low';
-      
-      return {
-        category,
-        predictedAmount: Math.round(lastAvg * (1 + change * 0.5)),
-        currentAverage: Math.round(avg),
-        trend,
-        confidence,
-      };
-    });
-
-    const totalPredicted = predictions.reduce((sum, p) => sum + p.predictedAmount, 0);
-
-    return {
-      predictions: predictions.sort((a, b) => b.predictedAmount - a.predictedAmount),
-      totalPredicted,
-      period: `Bulan ${new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`,
-      message: `Berdasarkan data ${months} bulan terakhir, prediksi pengeluaran bulan depan adalah ${totalPredicted.toLocaleString('id-ID')}.`,
-      insufficientData: false,
-    };
+};
   }
 
   async suggestSavings(userId: string) {
