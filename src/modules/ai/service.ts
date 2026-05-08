@@ -209,11 +209,12 @@ private generateDynamicMilestones(monthlyIncome: number, estimatedExpense: numbe
       return milestones;
     }
 
-  async predictSpending(userId: string, input: PredictSpendingInput) {
+async predictSpending(userId: string, input: PredictSpendingInput) {
     const { months } = input;
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - months);
 
+    // Get transactions
     const transactions = await prisma.transaction.findMany({
       where: {
         userId,
@@ -223,15 +224,102 @@ private generateDynamicMilestones(monthlyIncome: number, estimatedExpense: numbe
       include: { category: true },
     });
 
+    // Get budgets for comparison
+    const budgets = await prisma.budget.findMany({
+      where: {
+        userId,
+        isActive: true,
+        startDate: { lte: new Date() },
+        OR: [{ endDate: null }, { endDate: { gte: new Date() } }],
+      },
+      include: { category: true },
+    });
+
+    // Get accounts for total balance context
+    const accounts = await prisma.account.findMany({
+      where: { userId, isArchived: false },
+      select: { balance: true },
+    });
+    const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
+
     if (transactions.length === 0) {
       return {
         predictions: [],
         totalPredicted: 0,
+        totalBudget: 0,
+        totalSpent: 0,
         period: `Bulan ${new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`,
         message: 'Data transaksi masih kurang dari 3 bulan. Tambahkan lebih banyak transaksi untuk mendapatkan prediksi yang akurat.',
         insufficientData: true,
       };
     }
+
+    // Create budget map for comparison
+    const budgetMap: Record<string, number> = {};
+    budgets.forEach(b => {
+      const catName = b.category?.name || 'Other';
+      budgetMap[catName] = Number(b.amount);
+    });
+
+    const categoryMap: Record<string, number[]> = {};
+    
+    transactions.forEach(t => {
+      const catName = t.category?.name || 'Other';
+      if (!categoryMap[catName]) {
+        categoryMap[catName] = [];
+      }
+      categoryMap[catName].push(Number(t.amount));
+    });
+
+    const predictions: SpendingPrediction[] = Object.entries(categoryMap).map(([category, amounts]) => {
+      const avg = amounts.reduce((a, b) => a + b, 0) / amounts.length;
+      const lastMonth = amounts.slice(-Math.min(amounts.length, 4));
+      const lastAvg = lastMonth.reduce((a, b) => a + b, 0) / lastMonth.length;
+      const prevMonth = amounts.slice(-Math.min(amounts.length, 8), -4);
+      const prevAvg = prevMonth.length > 0 ? prevMonth.reduce((a, b) => a + b, 0) / lastAvg : lastAvg;
+      
+      const change = (lastAvg - prevAvg) / (prevAvg || 1);
+      const trend = change > 0.1 ? 'increasing' : change < -0.1 ? 'decreasing' : 'stable';
+      const confidence = amounts.length >= 20 ? 'high' : amounts.length >= 10 ? 'medium' : 'low';
+      
+      const budgetLimit = budgetMap[category];
+      const isOverBudget = budgetLimit && lastAvg > budgetLimit;
+      
+      return {
+        category,
+        predictedAmount: Math.round(lastAvg * (1 + change * 0.5)),
+        currentAverage: Math.round(avg),
+        budgetLimit: budgetLimit || undefined,
+        isOverBudget,
+        trend,
+        confidence,
+      };
+    });
+
+    const totalPredicted = predictions.reduce((sum, p) => sum + p.predictedAmount, 0);
+    const totalBudget = budgets.reduce((sum, b) => sum + Number(b.amount), 0);
+    const totalSpent = transactions.reduce((sum, t) => sum + Number(t.amount), 0);
+
+    // Generate contextual message
+    let message = `Berdasarkan data ${months} bulan terakhir, prediksi pengeluaran bulan depan adalah ${totalPredicted.toLocaleString('id-ID')}.`;
+    if (totalBudget > 0) {
+      const budgetUsagePercent = Math.round((totalSpent / totalBudget) * 100);
+      message += ` Penggunaan budget bulan ini: ${budgetUsagePercent}%.`;
+    }
+    if (totalBalance > 0) {
+      message += ` Total saldo akun: ${totalBalance.toLocaleString('id-ID')}.`;
+    }
+
+    return {
+      predictions: predictions.sort((a, b) => b.predictedAmount - a.predictedAmount),
+      totalPredicted,
+      totalBudget,
+      totalSpent,
+      period: `Bulan ${new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`,
+      message,
+      insufficientData: false,
+    };
+  }
 
     const categoryMap: Record<string, number[]> = {};
     
@@ -279,6 +367,7 @@ private generateDynamicMilestones(monthlyIncome: number, estimatedExpense: numbe
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
+    // Get transactions for this month
     const transactions = await prisma.transaction.findMany({
       where: {
         userId,
@@ -287,47 +376,136 @@ private generateDynamicMilestones(monthlyIncome: number, estimatedExpense: numbe
       include: { category: true },
     });
 
+    // Get accounts for total balance
+    const accounts = await prisma.account.findMany({
+      where: { userId, isArchived: false },
+      select: { id: true, name: true, balance: true },
+    });
+    const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
+
+    // Get active goals with progress
+    const goals = await prisma.goal.findMany({
+      where: { userId, status: 'ACTIVE' },
+      select: { id: true, name: true, currentAmount: true, targetAmount: true, deadline: true },
+    });
+
+    // Get budgets for this month
+    const budgets = await prisma.budget.findMany({
+      where: {
+        userId,
+        isActive: true,
+        startDate: { lte: endOfMonth },
+        OR: [{ endDate: null }, { endDate: { gte: startOfMonth } }],
+      },
+      include: { category: true },
+    });
+
+    // Calculate monthly totals
     const income = transactions.filter(t => t.type === 'INCOME').reduce((sum, t) => sum + Number(t.amount), 0);
     const expenses = transactions.filter(t => t.type === 'EXPENSE').reduce((sum, t) => sum + Number(t.amount), 0);
     const balance = income - expenses;
 
     const suggestions: SavingSuggestion[] = [];
 
+    // Suggest based on positive balance
     if (balance > 0) {
-      suggestions.push({
-        category: 'Tabungan Umum',
-        currentSpending: 0,
-        suggestedSaving: Math.round(balance * 0.5),
-        reason: 'Anda memiliki sisa saldo positif bulan ini. Simpan setidaknya 50% untuk dana darurat.',
-      });
+      const remainingToEmergency = Math.max(0, (income * 6) - totalBalance);
+      if (remainingToEmergency > 0 && remainingToEmergency < balance) {
+        suggestions.push({
+          category: 'Dana Darurat',
+          currentSpending: 0,
+          suggestedSaving: Math.min(Math.round(balance * 0.5), remainingToEmergency),
+          reason: `Tambahkan ke dana darurat. Sisa yang dibutuhkan: ${remainingToEmergency.toLocaleString('id-ID')}`,
+        });
+      } else {
+        suggestions.push({
+          category: 'Tabungan Umum',
+          currentSpending: 0,
+          suggestedSaving: Math.round(balance * 0.5),
+          reason: 'Anda memiliki sisa saldo positif bulan ini. Simpan setidaknya 50% untuk masa depan.',
+        });
+      }
     }
 
+    // Suggest based on goals progress
+    goals.forEach(goal => {
+      const progress = Number(goal.currentAmount) / Number(goal.targetAmount);
+      const remaining = Number(goal.targetAmount) - Number(goal.currentAmount);
+      const daysLeft = Math.ceil((new Date(goal.deadline).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (progress < 0.5 && daysLeft > 30 && income > 0) {
+        const monthlyNeeded = remaining / Math.min(daysLeft / 30, 12);
+        if (monthlyNeeded > income * 0.1) {
+          suggestions.push({
+            category: `Target: ${goal.name}`,
+            currentSpending: Number(goal.currentAmount),
+            suggestedSaving: Math.round(monthlyNeeded),
+            reason: `Target ${goal.name} tercapai ${Math.round(progress * 100)}%. Perlu tabungan ${monthlyNeeded.toLocaleString('id-ID')}/bulan untuk mencapai target.`,
+          });
+        }
+      }
+    });
+
+    // Suggest based on overspent categories
     const categorySpending: Record<string, number> = {};
     transactions.filter(t => t.type === 'EXPENSE').forEach(t => {
       const catName = t.category?.name || 'Other';
       categorySpending[catName] = (categorySpending[catName] || 0) + Number(t.amount);
     });
 
-    const topCategories = Object.entries(categorySpending)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3);
-
-    topCategories.forEach(([category, amount]) => {
-      if (amount > income * 0.2) {
+    // Check against budgets
+    budgets.forEach(budget => {
+      const catName = budget.category?.name || 'Other';
+      const spent = categorySpending[catName] || 0;
+      const limit = Number(budget.amount);
+      
+      if (spent > limit) {
+        const overBy = spent - limit;
         suggestions.push({
-          category,
-          currentSpending: amount,
-          suggestedSaving: Math.round(amount * 0.1),
-          reason: `Pengeluaran untuk ${category} mencapai ${Math.round((amount / income) * 100)}% dari pendapatan. Pertimbangkan untuk mengurangi 10%.`,
+          category: catName,
+          currentSpending: spent,
+          suggestedSaving: Math.round(overBy * 0.3),
+          reason: `Pengeluaran ${catName} melebihi budget ${limit.toLocaleString('id-ID')} sebesar ${Math.round((overBy / limit) * 100)}%. Hemat 30% dari kelebihan untuk tabungan.`,
+        });
+      } else if (spent > limit * 0.8 && spent <= limit) {
+        suggestions.push({
+          category: catName,
+          currentSpending: spent,
+          suggestedSaving: Math.round((limit - spent) * 0.5),
+          reason: `Pengeluaran ${catName} sudah ${Math.round((spent / limit) * 100)}% dari budget. Sisakan 50% untuk tabungan.`,
         });
       }
     });
 
+    // General suggestions based on income
+    if (income > 0 && balance <= 0) {
+      suggestions.push({
+        category: 'Kurangi Defisit',
+        currentSpending: expenses,
+        suggestedSaving: Math.round(income * 0.05),
+        reason: `Pengeluaran melebihi pendapatan. Coba hemat minimal 5% (${Math.round(income * 0.05).toLocaleString('id-ID')}) dari pengeluaran untuk mulai menabung.`,
+      });
+    }
+
+    // Account-based suggestion
+    if (totalBalance > income * 3) {
+      suggestions.push({
+        category: 'Investasi',
+        currentSpending: 0,
+        suggestedSaving: Math.round(totalBalance * 0.1),
+        reason: `Total saldo Anda (${totalBalance.toLocaleString('id-ID')}) sudah sehat. Pertimbangkan investasi 10% untuk pertumbuhan.`,
+      });
+    }
+
     return {
       suggestions: suggestions.slice(0, 5),
       currentBalance: balance,
+      totalAccountBalance: totalBalance,
+      activeGoalsCount: goals.length,
+      monthlyIncome: income,
+      monthlyExpenses: expenses,
       message: suggestions.length > 0 
-        ? `Ditemukan ${suggestions.length} saran untuk meningkatkan tabungan Anda.`
+        ? `Ditemukan ${suggestions.length} saran berdasarkan analisis keuangan Anda bulan ini.`
         : 'Pertahankan kebiasaan keuangan Anda yang baik!',
     };
   }
