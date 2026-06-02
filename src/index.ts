@@ -71,7 +71,7 @@ fastify.decorate('authenticate', authenticate);
 
 fastify.get('/health', async () => ({ status: 'ok' }));
 
-fastify.get('/api/public/pricing', async (request, reply) => {
+fastify.get('/pricing', async (request, reply) => {
   const { adminPricing } = await import('./modules/admin/admin-pricing.service.js');
   try {
     const pricings = await adminPricing.getPricings();
