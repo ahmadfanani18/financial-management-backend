@@ -1,0 +1,99 @@
+import type { FastifyRequest, FastifyReply } from 'fastify';
+import { authService } from './service.js';
+import { registerSchema, loginSchema } from './schemas.js';
+
+export async function registerHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const input = registerSchema.parse(request.body);
+  const user = await authService.register(input);
+  
+  const token = await reply.jwtSign({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+  });
+  
+  return reply.status(201).send({ user, token });
+}
+
+export async function loginHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const input = loginSchema.parse(request.body);
+  const loginResult = await authService.login(input);
+  
+  const userProfile = await authService.getProfile(loginResult.id);
+  
+  const user = JSON.parse(JSON.stringify({
+    id: userProfile.id,
+    email: userProfile.email,
+    name: userProfile.name,
+    role: userProfile.role,
+    subscriptionTier: userProfile.subscriptionTier,
+    trialStartedAt: userProfile.trialStartedAt,
+    trialEndsAt: userProfile.trialEndsAt,
+    subscriptionStartAt: userProfile.subscriptionStartAt,
+    subscriptionEndAt: userProfile.subscriptionEndAt,
+  }));
+  
+  const token = await reply.jwtSign({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+  });
+
+  return reply.send({ user, token });
+}
+
+export async function meHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const user = await authService.getProfile(request.user.id);
+  
+  const responseData = JSON.parse(JSON.stringify({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    subscriptionTier: user.subscriptionTier,
+    trialStartedAt: user.trialStartedAt,
+    trialEndsAt: user.trialEndsAt,
+    subscriptionStartAt: user.subscriptionStartAt,
+    subscriptionEndAt: user.subscriptionEndAt,
+  }));
+  
+  return reply.send({ user: responseData });
+}
+
+export async function changePasswordHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const { currentPassword, newPassword } = request.body as { currentPassword: string; newPassword: string };
+  const result = await authService.changePassword(request.user.id, currentPassword, newPassword);
+  return reply.send(result);
+}
+
+export async function forgotPasswordHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const { email } = request.body as { email: string };
+  const result = await authService.forgotPassword(email);
+  return reply.send(result);
+}
+
+export async function resetPasswordHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const { token, password } = request.body as { token: string; password: string };
+  const result = await authService.resetPassword(token, password);
+  return reply.send(result);
+}
