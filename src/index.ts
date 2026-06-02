@@ -71,6 +71,16 @@ fastify.decorate('authenticate', authenticate);
 
 fastify.get('/health', async () => ({ status: 'ok' }));
 
+fastify.get('/api/public/pricing', async (request, reply) => {
+  const { adminPricing } = await import('./modules/admin/admin-pricing.service.js');
+  try {
+    const pricings = await adminPricing.getPricings();
+    return reply.send(pricings);
+  } catch (error) {
+    return reply.status(500).send({ error: 'Failed to get pricings' });
+  }
+});
+
 await fastify.register(authRoutes, { prefix: '/api/auth' });
 await fastify.register(accountRoutes, { prefix: '/api/accounts' });
 await fastify.register(categoryRoutes, { prefix: '/api/categories' });
