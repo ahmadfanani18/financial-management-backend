@@ -15,6 +15,14 @@ export default async function handler(req, res) {
   const url = (req.url || '/').split('?')[0];
   const method = req.method;
 
+  // GET pricing (public - no auth required, must be before auth check)
+  if (url === '/api/pricing' && method === 'GET') {
+    db = await getPrisma();
+    const pricings = await db.pricing.findMany({ orderBy: { app: 'asc' } });
+    res.status(200).send(JSON.stringify(pricings));
+    return;
+  }
+
   const token = parseToken(req.headers.authorization);
   if (!token) {
     res.status(401).send(JSON.stringify({ message: 'Unauthorized' }));
