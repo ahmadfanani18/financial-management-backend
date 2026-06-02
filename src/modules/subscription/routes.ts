@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
-import { activateTrialHandler, getFeaturesHandler } from './controller.js';
+import { activateTrialHandler, getFeaturesHandler, getPublicPricingHandler } from './controller.js';
 import { authenticate } from '../../middleware/auth.js';
+import { adminPricing } from '../admin/admin-pricing.service.js';
 
 export async function subscriptionRoutes(fastify: FastifyInstance) {
   fastify.post('/activate-trial', {
@@ -10,4 +11,13 @@ export async function subscriptionRoutes(fastify: FastifyInstance) {
   fastify.get('/features', {
     preHandler: authenticate,
   }, getFeaturesHandler);
+
+  fastify.get('/pricing', async (request, reply) => {
+    try {
+      const pricings = await adminPricing.getPricings();
+      return reply.send(pricings);
+    } catch (error) {
+      return reply.status(500).send({ error: 'Failed to get pricings' });
+    }
+  });
 }
