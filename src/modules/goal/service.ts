@@ -110,6 +110,14 @@ export class GoalService {
       await this.createBudgetsForGoal(goal.id, monthlyAmount, goal.userId, goal.name, goal.color, goal.icon);
     }
 
+    // Link account back to goal for auto-contribution support
+    if (linkedAccountId) {
+      await prisma.account.update({
+        where: { id: linkedAccountId },
+        data: { linkedGoalId: goal.id },
+      });
+    }
+
     return goal;
   }
 
