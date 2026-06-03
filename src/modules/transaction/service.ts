@@ -229,6 +229,25 @@ export class TransactionService {
     const existing = await this.getById(id, userId);
     const { tagIds, ...data } = input;
 
+    if (existing.type === 'INCOME' || existing.type === 'EXPENSE') {
+      const reverse = existing.type === 'INCOME' ? -existing.amount : existing.amount;
+      await prisma.account.update({
+        where: { id: existing.accountId },
+        data: { balance: { increment: reverse } },
+      });
+    }
+
+    if (existing.type === 'TRANSFER' && existing.fromAccountId && existing.toAccountId) {
+      await prisma.account.update({
+        where: { id: existing.fromAccountId },
+        data: { balance: { increment: existing.amount } },
+      });
+      await prisma.account.update({
+        where: { id: existing.toAccountId },
+        data: { balance: { decrement: existing.amount } },
+      });
+    }
+
     const sanitizedData: any = { ...data };
     if (sanitizedData.fromAccountId === '') sanitizedData.fromAccountId = null;
     if (sanitizedData.toAccountId === '') sanitizedData.toAccountId = null;
@@ -245,6 +264,31 @@ export class TransactionService {
           transactionId: id,
           tagId,
         })),
+      });
+    }
+
+    const newType = input.type ?? existing.type;
+    const newAmount = input.amount ?? existing.amount;
+    const newAccountId = input.accountId ?? existing.accountId;
+    const newFromAccountId = input.fromAccountId ?? existing.fromAccountId;
+    const newToAccountId = input.toAccountId ?? existing.toAccountId;
+
+    if (newType === 'INCOME' || newType === 'EXPENSE') {
+      const adjustment = newType === 'INCOME' ? newAmount : -newAmount;
+      await prisma.account.update({
+        where: { id: newAccountId },
+        data: { balance: { increment: adjustment } },
+      });
+    }
+
+    if (newType === 'TRANSFER' && newFromAccountId && newToAccountId) {
+      await prisma.account.update({
+        where: { id: newFromAccountId },
+        data: { balance: { decrement: newAmount } },
+      });
+      await prisma.account.update({
+        where: { id: newToAccountId },
+        data: { balance: { increment: newAmount } },
       });
     }
 
