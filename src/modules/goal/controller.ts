@@ -114,14 +114,15 @@ export async function createGoalFromMilestoneHandler(
 }
 
 export async function deleteGoalWithRefundHandler(
-  request: FastifyRequest<{ Params: { id: string } }>,
+  request: FastifyRequest<{ Params: { id: string }; Querystring: { refundAccountId?: string } }>,
   reply: FastifyReply
 ) {
   const { id } = goalIdSchema.parse(request.params);
+  const { refundAccountId } = request.query;
   
   try {
-    await goalService.deleteWithRefund(id, request.user.id);
-    return reply.status(204).send();
+    const result = await goalService.deleteWithRefund(id, request.user.id, refundAccountId);
+    return reply.send(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return reply.status(400).send({ error: true, message });

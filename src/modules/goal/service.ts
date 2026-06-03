@@ -53,6 +53,7 @@ export class GoalService {
       ...goal,
       targetAmount: Number(goal.targetAmount),
       currentAmount: Number(goal.currentAmount),
+      initialBalance: goal.initialBalance ? Number(goal.initialBalance) : 0,
       contributions: goal.contributions.map(c => ({
         ...c,
         amount: Number(c.amount),
@@ -86,12 +87,13 @@ export class GoalService {
         color: goalData.color,
         userId,
         linkedAccountId,
+        initialBalance,
         currentAmount: initialBalance,
         isInitialSet,
       },
     });
 
-    if (initialBalance > 0 && linkedAccountId) {
+    if (isInitialSet && initialBalance > 0) {
       await prisma.goalContribution.create({
         data: {
           goalId: goal.id,
@@ -432,38 +434,51 @@ export class GoalService {
     return contribution;
   }
 
-  async deleteWithRefund(goalId: string, userId: string) {
+  async deleteWithRefund(goalId: string, userId: string, refundAccountId?: string) {
     const goal = await this.getById(goalId, userId);
     
-    if (goal.source !== 'AUTO_GENERATED') {
-      throw new Error('Hanya goal yang dibuat dari milestone yang dapat dihapus dengan refund');
-    }
+    const currentAmount = Number(goal.currentAmount);
+    const initialBalance = Number(goal.initialBalance) || 0;
+    const refundAmount = currentAmount - initialBalance;
 
-    const contributions = await prisma.goalContribution.findMany({
-      where: { goalId, accountId: { not: null } },
-    });
+    const linkedAccountId = goal.linkedAccountId;
+    const targetAccountId = refundAccountId || linkedAccountId;
 
     await prisma.$transaction(async (tx) => {
-      for (const contribution of contributions) {
-        if (contribution.accountId) {
-          await tx.transaction.create({
+      if (refundAmount > 0 && targetAccountId) {
+        let category = await tx.category.findFirst({
+          where: { userId, name: 'Goals', type: 'INCOME' },
+        });
+
+        if (!category) {
+          category = await tx.category.create({
             data: {
               userId,
-              accountId: contribution.accountId,
+              name: 'Goals',
               type: 'INCOME',
-              amount: contribution.amount,
-              description: `Refund dari goal: ${goal.name}`,
-              date: new Date(),
-            },
-          });
-
-          await tx.account.update({
-            where: { id: contribution.accountId },
-            data: {
-              balance: { increment: contribution.amount },
+              icon: 'target',
+              color: '#10B981',
+              isDefault: true,
             },
           });
         }
+
+        await tx.transaction.create({
+          data: {
+            userId,
+            accountId: targetAccountId,
+            categoryId: category.id,
+            type: 'INCOME',
+            amount: refundAmount,
+            description: `Refund dari hapus goal: ${goal.name}`,
+            date: new Date(),
+          },
+        });
+
+        await tx.account.update({
+          where: { id: targetAccountId },
+          data: { balance: { increment: refundAmount } },
+        });
       }
 
       await tx.goalContribution.deleteMany({ where: { goalId } });
@@ -482,6 +497,8 @@ export class GoalService {
     }
 
     await prisma.goal.delete({ where: { id: goalId } });
+
+    return { success: true, refundedAmount: refundAmount };
   }
 
   async syncFromMilestoneComplete(milestoneId: string, userId: string) {

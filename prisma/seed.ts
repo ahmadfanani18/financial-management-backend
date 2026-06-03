@@ -42,7 +42,32 @@ async function main() {
     console.log('Admin user already exists:', existingAdmin.email);
   }
 
-  const accounts = await Promise.all([
+  const savingsAccount = await prisma.account.create({
+      data: {
+        userId: demoUser.id,
+        name: 'Tabungan Liburan',
+        type: 'BANK',
+        balance: 8500000,
+        currency: 'IDR',
+        icon: 'piggy-bank',
+        color: '#8B5CF6',
+      },
+    });
+
+    const emergencyAccount = await prisma.account.create({
+      data: {
+        userId: demoUser.id,
+        name: 'Dana Darurat',
+        type: 'BANK',
+        balance: 18000000,
+        currency: 'IDR',
+        icon: 'shield',
+        color: '#F59E0B',
+        isLocked: true,
+      },
+    });
+
+    const accounts = await Promise.all([
     prisma.account.create({
       data: {
         userId: demoUser.id,
@@ -337,12 +362,15 @@ async function main() {
         name: 'Liburan ke Jepang',
         targetAmount: 25000000,
         currentAmount: 8500000,
+        initialBalance: 5000000,
         deadline: new Date(now.getFullYear() + 1, 5, 1),
         icon: 'plane',
         color: '#0EA5E9',
         status: 'ACTIVE',
         isLocked: false,
         source: 'MANUAL',
+        linkedAccountId: savingsAccount.id,
+        isInitialSet: true,
       },
     }),
     prisma.goal.create({
@@ -351,6 +379,7 @@ async function main() {
         name: 'Beli Laptop Baru',
         targetAmount: 15000000,
         currentAmount: 7000000,
+        initialBalance: 5000000,
         deadline: new Date(now.getFullYear(), now.getMonth() + 6, 1),
         icon: 'laptop',
         color: '#10B981',
@@ -365,12 +394,15 @@ async function main() {
         name: 'Dana Darurat',
         targetAmount: 30000000,
         currentAmount: 18000000,
+        initialBalance: 15000000,
         deadline: new Date(now.getFullYear() + 2, 0, 1),
         icon: 'shield',
         color: '#F59E0B',
         status: 'ACTIVE',
         isLocked: true,
         source: 'MANUAL',
+        linkedAccountId: emergencyAccount.id,
+        isInitialSet: true,
       },
     }),
   ]);
@@ -382,6 +414,17 @@ async function main() {
       data: {
         goalId: goals[0].id,
         amount: 5000000,
+        type: 'INITIAL',
+        date: new Date(now.getFullYear(), now.getMonth() - 3, 1),
+        note: 'Saldo awal dari akun',
+        accountId: savingsAccount.id,
+      },
+    }),
+    prisma.goalContribution.create({
+      data: {
+        goalId: goals[0].id,
+        amount: 3500000,
+        type: 'MANUAL',
         date: new Date(now.getFullYear(), now.getMonth() - 1, 15),
         note: 'Tabungan bulanan',
         accountId: accounts[0].id,
@@ -389,20 +432,41 @@ async function main() {
     }),
     prisma.goalContribution.create({
       data: {
-        goalId: goals[0].id,
-        amount: 3500000,
-        date: new Date(now.getFullYear(), now.getMonth(), 10),
-        note: 'Bonus proyek',
-        accountId: accounts[0].id,
+        goalId: goals[1].id,
+        amount: 5000000,
+        type: 'INITIAL',
+        date: new Date(now.getFullYear(), now.getMonth() - 2, 1),
+        note: 'Saldo awal',
       },
     }),
     prisma.goalContribution.create({
       data: {
         goalId: goals[1].id,
-        amount: 7000000,
+        amount: 2000000,
+        type: 'MANUAL',
         date: new Date(now.getFullYear(), now.getMonth(), 5),
         note: 'Dari tabungan',
         accountId: accounts[0].id,
+      },
+    }),
+    prisma.goalContribution.create({
+      data: {
+        goalId: goals[2].id,
+        amount: 15000000,
+        type: 'INITIAL',
+        date: new Date(now.getFullYear(), now.getMonth() - 6, 1),
+        note: 'Saldo awal dari akun',
+        accountId: emergencyAccount.id,
+      },
+    }),
+    prisma.goalContribution.create({
+      data: {
+        goalId: goals[2].id,
+        amount: 3000000,
+        type: 'AUTO',
+        date: new Date(now.getFullYear(), now.getMonth(), 1),
+        note: 'Auto dari transfer',
+        accountId: emergencyAccount.id,
       },
     }),
   ]);

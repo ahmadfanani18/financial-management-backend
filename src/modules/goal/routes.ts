@@ -130,6 +130,12 @@ export async function goalRoutes(fastify: FastifyInstance) {
   fastify.delete('/:id/with-refund', {
     schema: {
       params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } } },
+      querystring: {
+        type: 'object',
+        properties: {
+          refundAccountId: { type: 'string', format: 'uuid' },
+        },
+      },
     },
   }, deleteGoalWithRefundHandler);
 }

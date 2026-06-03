@@ -289,8 +289,9 @@ model Goal {
   isLocked          Boolean    @default(false)
   source            GoalSource @default(MANUAL)
   sourceMilestoneId String?
-  linkedAccountId  String?
-  isInitialSet     Boolean    @default(false)
+  linkedAccountId   String?
+  initialBalance    Decimal?  @db.Decimal(15, 2)
+  isInitialSet      Boolean   @default(false)
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
