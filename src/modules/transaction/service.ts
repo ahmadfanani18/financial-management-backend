@@ -386,6 +386,7 @@ export class TransactionService {
 
     if (Number(goal.currentAmount) >= Number(goal.targetAmount)) return;
 
+    // Create contribution
     await prisma.goalContribution.create({
       data: {
         goalId: goal.id,
@@ -397,12 +398,35 @@ export class TransactionService {
       },
     });
 
+    // Update goal currentAmount
     await prisma.goal.update({
       where: { id: goal.id },
-      data: {
-        currentAmount: { increment: amount },
-      },
+      data: { currentAmount: { increment: amount } },
     });
+
+    // Update budget if exists
+    const budgets = await prisma.budget.findMany({
+      where: {
+        userId,
+        isActive: true,
+        category: {
+          name: { startsWith: 'Tabungan - ' },
+          userId,
+        },
+      },
+      include: { category: true },
+    });
+
+    const goalBudget = budgets.find(b => 
+      b.category.name === `Tabungan - ${goal.name}`
+    );
+
+    if (goalBudget) {
+      await prisma.budget.update({
+        where: { id: goalBudget.id },
+        data: { spent: { increment: amount } },
+      });
+    }
   }
 }
 
