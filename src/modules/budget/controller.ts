@@ -3,18 +3,18 @@ import { budgetService } from './service.js';
 import { createBudgetSchema, updateBudgetSchema, budgetIdSchema } from './schemas.js';
 
 export async function getBudgetsHandler(
-  request: FastifyRequest,
+  request: FastifyRequest<{ Querystring: { month?: string } }>,
   reply: FastifyReply
 ) {
-  const budgets = await budgetService.getAllWithSpending(request.user.id);
+  const budgets = await budgetService.getAllWithSpending(request.user.id, request.query.month);
   return reply.send({ budgets });
 }
 
 export async function getBudgetSummaryHandler(
-  request: FastifyRequest,
+  request: FastifyRequest<{ Querystring: { month?: string } }>,
   reply: FastifyReply
 ) {
-  const summary = await budgetService.getSummary(request.user.id);
+  const summary = await budgetService.getSummary(request.user.id, request.query.month);
   return reply.send(summary);
 }
 

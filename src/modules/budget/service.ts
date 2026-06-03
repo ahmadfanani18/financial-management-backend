@@ -151,11 +151,34 @@ export class BudgetService {
     };
   }
 
-  async getAllWithSpending(userId: string) {
+  async getAllWithSpending(userId: string, month?: string) {
     const budgets = await this.getAll(userId);
+
+    let targetDate: Date;
+    if (month) {
+      const [year, monthNum] = month.split('-');
+      targetDate = new Date(parseInt(year), parseInt(monthNum) - 1, 15);
+    } else {
+      targetDate = new Date();
+    }
+
+    const targetYear = targetDate.getFullYear();
+    const targetMonth = targetDate.getMonth();
+
+    const filteredBudgets = budgets.filter((budget) => {
+      const start = new Date(budget.startDate);
+      const end = budget.endDate ? new Date(budget.endDate) : new Date(start.getFullYear(), start.getMonth() + 1, 0);
+
+      const budgetStart = new Date(start.getFullYear(), start.getMonth(), 1);
+      const budgetEnd = new Date(end.getFullYear(), end.getMonth(), 1);
+
+      const target = new Date(targetYear, targetMonth, 1);
+
+      return target >= budgetStart && target <= budgetEnd;
+    });
     
     const results = await Promise.all(
-      budgets.map(async (budget) => {
+      filteredBudgets.map(async (budget) => {
         const startDate = new Date(budget.startDate);
         const endDate = budget.endDate || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
         
@@ -189,8 +212,8 @@ export class BudgetService {
     return results;
   }
 
-  async getSummary(userId: string) {
-    const budgetsWithSpending = await this.getAllWithSpending(userId);
+  async getSummary(userId: string, month?: string) {
+    const budgetsWithSpending = await this.getAllWithSpending(userId, month);
     
     const totalBudget = budgetsWithSpending.reduce((sum, b) => sum + Number(b.amount), 0);
     const totalSpent = budgetsWithSpending.reduce((sum, b) => sum + b.spent, 0);

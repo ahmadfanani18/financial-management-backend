@@ -144,7 +144,7 @@ export class GoalService {
     }
 
     const budgets = [];
-    for (let i = 0; i < monthsRemaining; i++) {
+    for (let i = 0; i <= monthsRemaining; i++) {
       const startDate = startOfMonth(new Date(now.getFullYear(), now.getMonth() + i, 1));
       const endDate = endOfMonth(new Date(now.getFullYear(), now.getMonth() + i, 1));
 
