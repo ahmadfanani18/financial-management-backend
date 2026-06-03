@@ -12,8 +12,14 @@ interface SpendingPrediction {
   category: string;
   predictedAmount: number;
   currentAverage: number;
+  budgetLimit?: number;
+  isOverBudget?: boolean;
   trend: 'increasing' | 'decreasing' | 'stable';
   confidence: 'high' | 'medium' | 'low';
+  dataPoints: number;
+  calculationMethod?: 'single_transaction' | 'weighted_average' | 'trend_projection' | 'no_spending';
+  noSpendingRecorded?: boolean;
+  trendChange?: number;
 }
 
 interface SavingSuggestion {
@@ -21,6 +27,98 @@ interface SavingSuggestion {
   currentSpending: number;
   suggestedSaving: number;
   reason: string;
+}
+
+function weightedAverage(amounts: number[]): number {
+  const n = amounts.length;
+  if (n === 0) return 0;
+  
+  const weights = amounts.map((_, i) => (i + 1) / n * 2);
+  const totalAmount = amounts.reduce((sum, amt, i) => sum + amt * weights[i], 0);
+  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+  return totalAmount / totalWeight;
+}
+
+function calculateTimeSpanMonths(transactions: { date: Date }[]): number {
+  if (transactions.length < 2) return 1;
+  
+  const dates = transactions.map(t => new Date(t.date));
+  const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
+  const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+  
+  const monthsDiff = (maxDate.getFullYear() - minDate.getFullYear()) * 12 
+                   + (maxDate.getMonth() - minDate.getMonth());
+  
+  return Math.max(1, monthsDiff + 1);
+}
+
+function calculateConfidenceScore(transactionCount: number, timeSpanMonths: number, lookbackMonths: number): 'high' | 'medium' | 'low' {
+  const score = transactionCount * timeSpanMonths / lookbackMonths;
+  if (score > 15) return 'high';
+  if (score >= 5) return 'medium';
+  return 'low';
+}
+
+function categorizeByDataPoints(
+  amounts: number[],
+  transactions: { date: Date; amount: number }[]
+): {
+  dataPoints: number;
+  calculationMethod: 'single_transaction' | 'weighted_average' | 'trend_projection' | 'no_spending';
+  predictedAmount: number;
+  trend: 'increasing' | 'decreasing' | 'stable';
+  trendChange?: number;
+} {
+  const dataPoints = amounts.length;
+  
+  if (dataPoints === 0) {
+    return {
+      dataPoints,
+      calculationMethod: 'no_spending',
+      predictedAmount: 0,
+      trend: 'stable',
+    };
+  }
+  
+  if (dataPoints === 1) {
+    return {
+      dataPoints,
+      calculationMethod: 'single_transaction',
+      predictedAmount: Math.round(amounts[0]),
+      trend: 'stable',
+    };
+  }
+  
+  if (dataPoints < 4) {
+    const weightedAvg = weightedAverage(amounts);
+    return {
+      dataPoints,
+      calculationMethod: 'weighted_average',
+      predictedAmount: Math.round(weightedAvg),
+      trend: 'stable',
+    };
+  }
+  
+  const sortedByDate = [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const amountsSorted = sortedByDate.map(t => Number(t.amount));
+  
+  const lastMonth = amountsSorted.slice(0, Math.min(amountsSorted.length, 4));
+  const lastAvg = weightedAverage(lastMonth);
+  const prevMonth = amountsSorted.slice(Math.min(amountsSorted.length, 4), Math.min(amountsSorted.length, 8));
+  const hasPrevData = prevMonth.length >= 2;
+  const prevAvg = hasPrevData ? weightedAverage(prevMonth) : lastAvg;
+  
+  const change = (lastAvg - prevAvg) / (prevAvg || 1);
+  const trend = change > 0.15 ? 'increasing' : change < -0.15 ? 'decreasing' : 'stable';
+  const predictedAmount = Math.round(lastAvg * (1 + change * 0.3));
+  
+  return {
+    dataPoints,
+    calculationMethod: 'trend_projection',
+    predictedAmount: Math.max(0, predictedAmount),
+    trend,
+    trendChange: Math.round(change * 100) / 100,
+  };
 }
 
 export class AIService {
@@ -293,6 +391,7 @@ async predictSpending(userId: string, input: PredictSpendingInput) {
         isOverBudget,
         trend,
         confidence,
+        dataPoints: amounts.length,
       };
     });
 
@@ -833,3 +932,5 @@ export class SmartSaverService {
 }
 
 export const smartSaverService = new SmartSaverService();
+
+export { weightedAverage, calculateTimeSpanMonths, calculateConfidenceScore, categorizeByDataPoints };
