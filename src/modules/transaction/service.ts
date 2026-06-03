@@ -220,7 +220,7 @@ export class TransactionService {
         data: { balance: { increment: input.amount } },
       });
 
-      await this.handleAutoContribution(input.toAccountId, input.amount, userId, transaction.id);
+      await this.handleAutoContribution(input.toAccountId, input.amount, userId, transaction.id, new Date(input.date));
     }
 
     return this.getById(transaction.id, userId);
@@ -375,7 +375,7 @@ export class TransactionService {
     return { income, expense, balance: income - expense };
   }
 
-  private async handleAutoContribution(accountId: string, amount: number, userId: string, sourceTransactionId?: string) {
+  private async handleAutoContribution(accountId: string, amount: number, userId: string, sourceTransactionId?: string, txDate?: Date) {
     const account = await prisma.account.findUnique({
       where: { id: accountId },
       include: { linkedGoal: true },
@@ -424,11 +424,20 @@ export class TransactionService {
     console.log('DEBUG handleAutoContribution - budgets found:', budgets.length);
     console.log('DEBUG handleAutoContribution - budget names:', budgets.map(b => b.category.name));
 
-    const goalBudget = budgets.find(b => 
-      b.category.name === 'Tabungan - ' + goal.name
-    );
+    // Filter budget by transaction date
+    const effectiveDate = txDate instanceof Date ? txDate : new Date();
+    const txMonth = effectiveDate.getMonth();
+    const txYear = effectiveDate.getFullYear();
+    
+    const goalBudget = budgets.find(b => {
+      const endDate = new Date(b.endDate);
+      return b.category.name === 'Tabungan - ' + goal.name
+        && endDate.getMonth() === txMonth
+        && endDate.getFullYear() === txYear;
+    });
 
-    console.log('DEBUG handleAutoContribution - matched budget:', goalBudget?.id);
+    console.log('DEBUG handleAutoContribution - txDate:', effectiveDate.toISOString());
+    console.log('DEBUG handleAutoContribution - matched budget:', goalBudget?.id, 'endDate:', goalBudget?.endDate);
 
     if (goalBudget) {
       await prisma.budget.update({
