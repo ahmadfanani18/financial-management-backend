@@ -291,7 +291,7 @@ export class GoalService {
           });
         }
 
-        await tx.transaction.create({
+        const transaction = await tx.transaction.create({
           data: {
             userId,
             accountId,
@@ -306,6 +306,11 @@ export class GoalService {
         await tx.account.update({
           where: { id: accountId },
           data: { balance: { decrement: input.amount } },
+        });
+
+        await tx.goalContribution.update({
+          where: { id: contribution.id },
+          data: { sourceTransactionId: transaction.id },
         });
       }
 
