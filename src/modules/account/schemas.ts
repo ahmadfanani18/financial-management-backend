@@ -7,6 +7,8 @@ export const createAccountSchema = z.object({
   currency: z.string().default('IDR'),
   icon: z.string().default('wallet'),
   color: z.string().default('#0EA5E9'),
+  isLocked: z.boolean().default(false),
+  lockedReason: z.string().nullable().optional(),
   linkedGoalId: z.string().uuid().nullable().optional(),
 });
 
