@@ -133,7 +133,7 @@ export class BudgetService {
       where: {
         userId,
         categoryId: budget.categoryId,
-        type: 'EXPENSE',
+        type: { in: ['EXPENSE', 'TRANSFER'] },
         date: { gte: startDate, lte: endDate },
       },
     });
