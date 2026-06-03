@@ -245,6 +245,7 @@ model Transaction {
   fromAccount       Account?        @relation("FromTransfers", fields: [fromAccountId], references: [id])
   toAccount         Account?        @relation("ToTransfers", fields: [toAccountId], references: [id])
   tags              TransactionTag[]
+  goalContributions GoalContribution[]
 }
 
 model TransactionTag {
@@ -316,12 +317,14 @@ model GoalContribution {
   note        String?
   accountId   String?
   categoryId  String?
-  type        ContributionType @default(MANUAL)
-  createdAt   DateTime        @default(now())
+  type               ContributionType @default(MANUAL)
+  sourceTransactionId String?
+  createdAt          DateTime        @default(now())
 
-  goal        Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
-  account     Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
-  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  goal               Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  account            Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  category           Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  sourceTransaction  Transaction? @relation(fields: [sourceTransactionId], references: [id], onDelete: SetNull)
 }
 
 model Plan {
