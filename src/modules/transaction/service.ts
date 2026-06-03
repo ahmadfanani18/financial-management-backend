@@ -317,6 +317,29 @@ export class TransactionService {
       });
     }
 
+    const contribution = await prisma.goalContribution.findFirst({
+      where: { sourceTransactionId: id },
+    });
+
+    if (contribution) {
+      await prisma.goal.update({
+        where: { id: contribution.goalId },
+        data: { currentAmount: { decrement: contribution.amount } },
+      });
+
+      const goal = await prisma.goal.findUnique({ where: { id: contribution.goalId } });
+      if (goal && goal.status === 'COMPLETED') {
+        await prisma.goal.update({
+          where: { id: contribution.goalId },
+          data: { status: 'ACTIVE' },
+        });
+      }
+
+      await prisma.goalContribution.delete({
+        where: { id: contribution.id },
+      });
+    }
+
     await prisma.transaction.delete({ where: { id } });
   }
 
