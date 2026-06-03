@@ -195,6 +195,7 @@ export class TransactionService {
                 date: new Date(input.date),
                 note: input.note || `Dari transaksi: ${category.name}`,
                 accountId: input.accountId,
+                sourceTransactionId: transaction.id,
               },
             });
 
@@ -219,7 +220,7 @@ export class TransactionService {
         data: { balance: { increment: input.amount } },
       });
 
-      await this.handleAutoContribution(input.toAccountId, input.amount, userId);
+      await this.handleAutoContribution(input.toAccountId, input.amount, userId, transaction.id);
     }
 
     return this.getById(transaction.id, userId);
@@ -374,7 +375,7 @@ export class TransactionService {
     return { income, expense, balance: income - expense };
   }
 
-  private async handleAutoContribution(accountId: string, amount: number, userId: string) {
+  private async handleAutoContribution(accountId: string, amount: number, userId: string, sourceTransactionId?: string) {
     const account = await prisma.account.findUnique({
       where: { id: accountId },
       include: { linkedGoal: true },
@@ -395,6 +396,7 @@ export class TransactionService {
         type: 'AUTO',
         note: `Auto dari transfer ke ${account.name}`,
         date: new Date(),
+        sourceTransactionId: sourceTransactionId,
       },
     });
 
@@ -417,9 +419,16 @@ export class TransactionService {
       include: { category: true },
     });
 
+    console.log('DEBUG handleAutoContribution - userId:', userId);
+    console.log('DEBUG handleAutoContribution - goal.name:', goal.name);
+    console.log('DEBUG handleAutoContribution - budgets found:', budgets.length);
+    console.log('DEBUG handleAutoContribution - budget names:', budgets.map(b => b.category.name));
+
     const goalBudget = budgets.find(b => 
-      b.category.name === `Tabungan - ${goal.name}`
+      b.category.name === 'Tabungan - ' + goal.name
     );
+
+    console.log('DEBUG handleAutoContribution - matched budget:', goalBudget?.id);
 
     if (goalBudget) {
       await prisma.budget.update({
