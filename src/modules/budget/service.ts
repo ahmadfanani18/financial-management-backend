@@ -186,13 +186,13 @@ export class BudgetService {
           where: {
             userId,
             categoryId: budget.categoryId,
-            type: 'EXPENSE',
+            type: { in: ['EXPENSE', 'TRANSFER'] },
             date: { gte: startDate, lte: endDate },
           },
         });
         
         console.log('Budget:', budget.categoryId, 'Category:', budget.category?.name);
-        console.log('Transactions found:', transactions.length);
+        console.log('Transactions found:', transactions.length, 'IDs:', transactions.map(t => t.id));
         console.log('Start date:', startDate, 'End date:', endDate);
         
         const spent = transactions.reduce((sum, t) => sum + Number(t.amount), 0);
