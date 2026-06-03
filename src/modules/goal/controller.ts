@@ -128,3 +128,25 @@ export async function deleteGoalWithRefundHandler(
     return reply.status(400).send({ error: true, message });
   }
 }
+
+export async function deleteContributionHandler(
+  request: FastifyRequest<{ Params: { id: string; contributionId: string } }>,
+  reply: FastifyReply
+) {
+  const { id: goalId, contributionId } = request.params;
+  const userId = request.user.id;
+  
+  try {
+    const result = await goalService.deleteContribution(goalId, contributionId, userId);
+    return reply.send(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    if (message.includes('INITIAL')) {
+      return reply.status(400).send({ error: message });
+    }
+    if (message.includes('tidak ditemukan')) {
+      return reply.status(404).send({ error: message });
+    }
+    return reply.status(500).send({ error: 'Gagal menghapus contribution' });
+  }
+}

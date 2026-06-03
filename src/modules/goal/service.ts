@@ -526,6 +526,63 @@ export class GoalService {
 
     return await this.getProgress(milestone.goalId, userId);
   }
+
+  async deleteContribution(goalId: string, contributionId: string, userId: string) {
+    const goal = await this.getById(goalId, userId);
+    
+    const contribution = await prisma.goalContribution.findFirst({
+      where: { id: contributionId, goalId: goalId },
+    });
+    
+    if (!contribution) {
+      throw new Error('Contribution tidak ditemukan');
+    }
+    
+    if (contribution.type === 'INITIAL') {
+      throw new Error('Contribution awal tidak bisa dihapus');
+    }
+    
+    return prisma.$transaction(async (tx) => {
+      await tx.goal.update({
+        where: { id: goalId },
+        data: { currentAmount: { decrement: contribution.amount } },
+      });
+      
+      const updatedGoal = await tx.goal.findUnique({ where: { id: goalId } });
+      if (updatedGoal && updatedGoal.status === 'COMPLETED') {
+        await tx.goal.update({
+          where: { id: goalId },
+          data: { status: 'ACTIVE' },
+        });
+      }
+      
+      if (contribution.accountId) {
+        await tx.account.update({
+          where: { id: contribution.accountId },
+          data: { balance: { increment: contribution.amount } },
+        });
+      }
+      
+      if (contribution.sourceTransactionId) {
+        const sourceTx = await tx.transaction.findUnique({
+          where: { id: contribution.sourceTransactionId },
+        });
+        if (sourceTx && sourceTx.type === 'EXPENSE') {
+          await tx.account.update({
+            where: { id: sourceTx.accountId },
+            data: { balance: { increment: sourceTx.amount } },
+          });
+        }
+        if (sourceTx) {
+          await tx.transaction.delete({ where: { id: contribution.sourceTransactionId } });
+        }
+      }
+      
+      await tx.goalContribution.delete({ where: { id: contributionId } });
+      
+      return { success: true, goal: updatedGoal };
+    });
+  }
 }
 
 export const goalService = new GoalService();
