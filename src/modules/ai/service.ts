@@ -370,28 +370,27 @@ async predictSpending(userId: string, input: PredictSpendingInput) {
     });
 
     const predictions: SpendingPrediction[] = Object.entries(categoryMap).map(([category, amounts]) => {
+      const catTransactions = transactions.filter(t => (t.category?.name || 'Other') === category);
+      const timeSpanMonths = calculateTimeSpanMonths(catTransactions);
+      const confidenceScore = calculateConfidenceScore(amounts.length, timeSpanMonths, months);
+      const result = categorizeByDataPoints(amounts, catTransactions);
+
       const avg = amounts.reduce((a, b) => a + b, 0) / amounts.length;
-      const lastMonth = amounts.slice(-Math.min(amounts.length, 4));
-      const lastAvg = lastMonth.reduce((a, b) => a + b, 0) / lastMonth.length;
-      const prevMonth = amounts.slice(-Math.min(amounts.length, 8), -4);
-      const prevAvg = prevMonth.length > 0 ? prevMonth.reduce((a, b) => a + b, 0) / lastAvg : lastAvg;
-      
-      const change = (lastAvg - prevAvg) / (prevAvg || 1);
-      const trend = change > 0.1 ? 'increasing' : change < -0.1 ? 'decreasing' : 'stable';
-      const confidence = amounts.length >= 20 ? 'high' : amounts.length >= 10 ? 'medium' : 'low';
-      
       const budgetLimit = budgetMap[category];
-      const isOverBudget = budgetLimit && lastAvg > budgetLimit;
-      
+      const isOverBudget = budgetLimit && avg > budgetLimit;
+
       return {
         category,
-        predictedAmount: Math.round(lastAvg * (1 + change * 0.5)),
+        predictedAmount: result.predictedAmount,
         currentAverage: Math.round(avg),
         budgetLimit: budgetLimit || undefined,
         isOverBudget,
-        trend,
-        confidence,
-        dataPoints: amounts.length,
+        trend: result.trend,
+        confidence: confidenceScore,
+        dataPoints: result.dataPoints,
+        calculationMethod: result.calculationMethod,
+        noSpendingRecorded: result.calculationMethod === 'no_spending',
+        trendChange: result.trendChange,
       };
     });
 
@@ -400,7 +399,7 @@ async predictSpending(userId: string, input: PredictSpendingInput) {
     const totalSpent = transactions.reduce((sum, t) => sum + Number(t.amount), 0);
 
     // Generate contextual message
-    let message = `Berdasarkan data ${months} bulan terakhir, prediksi pengeluaran bulan depan adalah ${totalPredicted.toLocaleString('id-ID')}.`;
+    let message = `Berdasarkan compilation data spending pattern kamu selama ${months} bulan terakhir, prediksi pengeluaran bulan depan adalah ${totalPredicted.toLocaleString('id-ID')}.`;
     if (totalBudget > 0) {
       const budgetUsagePercent = Math.round((totalSpent / totalBudget) * 100);
       message += ` Penggunaan budget bulan ini: ${budgetUsagePercent}%.`;
