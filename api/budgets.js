@@ -4,7 +4,7 @@ function calculateEndDate(startDate, period) {
   const start = new Date(startDate);
   switch (period) {
     case 'MONTHLY':
-      return new Date(start.getFullYear(), start.getMonth() + 1, 0, 23, 59, 59, 999);
+      return new Date(start.getUTCFullYear(), start.getUTCMonth() + 1, 0, 23, 59, 59, 999);
     case 'WEEKLY': {
       const end = new Date(start);
       end.setDate(end.getDate() + 6);
@@ -13,7 +13,7 @@ function calculateEndDate(startDate, period) {
     }
     case 'YEARLY': {
       const end = new Date(start);
-      end.setFullYear(end.getFullYear() + 1);
+      end.setFullYear(end.getUTCFullYear() + 1);
       end.setDate(end.getDate() - 1);
       end.setHours(23, 59, 59, 999);
       return end;
@@ -62,14 +62,14 @@ export default async function handler(req, res) {
         const [year, monthNum] = month.split('-');
         targetDate = new Date(parseInt(year), parseInt(monthNum) - 1, 15);
       }
-      const targetYear = targetDate.getFullYear();
-      const targetMonth = targetDate.getMonth();
+      const targetYear = targetDate.getUTCFullYear();
+      const targetMonth = targetDate.getUTCMonth();
       
       const filteredBudgets = budgets.filter((budget) => {
         const start = new Date(budget.startDate);
         const end = budget.endDate ? new Date(budget.endDate) : calculateEndDate(start, budget.period);
-        const budgetStart = new Date(start.getFullYear(), start.getMonth(), 1);
-        const budgetEnd = new Date(end.getFullYear(), end.getMonth(), 1);
+        const budgetStart = new Date(start.getUTCFullYear(), start.getUTCMonth(), 1);
+        const budgetEnd = new Date(end.getUTCFullYear(), end.getUTCMonth(), 1);
         const target = new Date(targetYear, targetMonth, 1);
         return target >= budgetStart && target <= budgetEnd;
       });
@@ -144,14 +144,14 @@ export default async function handler(req, res) {
         const [year, monthNum] = month.split('-');
         targetDate = new Date(parseInt(year), parseInt(monthNum) - 1, 15);
       }
-      const targetYear = targetDate.getFullYear();
-      const targetMonth = targetDate.getMonth();
+      const targetYear = targetDate.getUTCFullYear();
+      const targetMonth = targetDate.getUTCMonth();
       
       const filteredBudgets = budgets.filter((budget) => {
         const start = new Date(budget.startDate);
         const end = budget.endDate ? new Date(budget.endDate) : calculateEndDate(start, budget.period);
-        const budgetStart = new Date(start.getFullYear(), start.getMonth(), 1);
-        const budgetEnd = new Date(end.getFullYear(), end.getMonth(), 1);
+        const budgetStart = new Date(start.getUTCFullYear(), start.getUTCMonth(), 1);
+        const budgetEnd = new Date(end.getUTCFullYear(), end.getUTCMonth(), 1);
         const target = new Date(targetYear, targetMonth, 1);
         return target >= budgetStart && target <= budgetEnd;
       });
