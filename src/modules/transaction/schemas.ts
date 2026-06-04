@@ -5,6 +5,7 @@ export const createTransactionSchema = z.object({
   categoryId: z.string().optional(),
   type: z.enum(['INCOME', 'EXPENSE', 'TRANSFER']),
   amount: z.number().positive('Jumlah harus positif'),
+  adminFee: z.number().min(0, 'Biaya admin tidak boleh negatif').optional(),
   description: z.string().default(''),
   date: z.coerce.date(),
   receiptUrl: z.string().url().optional(),
@@ -20,6 +21,15 @@ export const createTransactionSchema = z.object({
 });
 
 export const updateTransactionSchema = createTransactionSchema.partial();
+
+export const createTransactionSchemaWithFee = createTransactionSchema.refine(
+  (data) => {
+    if (data.type !== 'TRANSFER') return true;
+    if (data.adminFee === undefined) return true;
+    return data.adminFee <= data.amount;
+  },
+  { message: 'Biaya admin tidak boleh lebih besar dari jumlah transfer', path: ['adminFee'] }
+);
 
 export const transactionIdSchema = z.object({
   id: z.string().uuid('Invalid UUID format'),

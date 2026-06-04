@@ -229,6 +229,7 @@ model Transaction {
   categoryId        String?
   type              TransactionType
   amount            Decimal         @db.Decimal(15, 2)
+  adminFee          Decimal         @default(0) @db.Decimal(15, 2)
   description       String
   date              DateTime
   receiptUrl        String?
