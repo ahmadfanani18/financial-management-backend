@@ -284,6 +284,48 @@ export default async function handler(req, res) {
     }
   }
 
+  // Change password
+  if (url === '/api/auth/change-password' && method === 'PUT') {
+    const token = parseToken(req.headers.authorization);
+    if (!token) {
+      res.status(401).send(JSON.stringify({ message: 'Unauthorized' }));
+      return;
+    }
+    try {
+      const body = parseBody(req.body);
+      const { currentPassword, newPassword } = body || {};
+      if (!currentPassword || !newPassword) {
+        res.status(400).send(JSON.stringify({ message: 'currentPassword and newPassword required' }));
+        return;
+      }
+      if (newPassword.length < 6) {
+        res.status(400).send(JSON.stringify({ message: 'Password minimal 6 karakter' }));
+        return;
+      }
+      const user = await db.user.findUnique({ where: { id: token.userId } });
+      if (!user || !user.password) {
+        res.status(400).send(JSON.stringify({ message: 'Tidak dapat mengubah password' }));
+        return;
+      }
+      const isValid = await verifyPassword(currentPassword, user.password);
+      if (!isValid) {
+        res.status(400).send(JSON.stringify({ message: 'Password saat ini salah' }));
+        return;
+      }
+      const hashedPassword = await hashPassword(newPassword);
+      await db.user.update({
+        where: { id: token.userId },
+        data: { password: hashedPassword }
+      });
+      res.status(200).send(JSON.stringify({ message: 'Password berhasil diubah' }));
+      return;
+    } catch (err) {
+      console.error('Change password error:', err);
+      res.status(500).send(JSON.stringify({ message: 'Internal server error', error: String(err) }));
+      return;
+    }
+  }
+
   res.status(404).send(JSON.stringify({ error: 'Not found', url, method }));
   } catch (err) {
     console.error('Handler error:', err);
