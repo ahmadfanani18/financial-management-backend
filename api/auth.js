@@ -97,7 +97,17 @@ export default async function handler(req, res) {
       res.status(404).send(JSON.stringify({ message: 'User not found' }));
       return;
     }
-    res.status(200).send(JSON.stringify({ id: user.id, email: user.email, name: user.name }));
+    res.status(200).send(JSON.stringify({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      subscriptionTier: user.subscriptionTier,
+      trialStartedAt: user.trialStartedAt,
+      trialEndsAt: user.trialEndsAt,
+      subscriptionStartAt: user.subscriptionStartAt,
+      subscriptionEndAt: user.subscriptionEndAt,
+    }));
     return;
   }
 
