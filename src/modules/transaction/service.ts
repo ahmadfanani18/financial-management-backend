@@ -387,49 +387,52 @@ export class TransactionService {
   async delete(id: string, userId: string) {
     const transaction = await this.getById(id, userId);
 
-    if (transaction.type === 'INCOME' || transaction.type === 'EXPENSE') {
-      const adjustment = transaction.type === 'INCOME' ? -transaction.amount : transaction.amount;
-      await prisma.account.update({
-        where: { id: transaction.accountId },
-        data: { balance: { increment: adjustment } },
-      });
-    }
-
-    if (transaction.type === 'TRANSFER' && transaction.fromAccountId && transaction.toAccountId) {
-      await prisma.account.update({
-        where: { id: transaction.fromAccountId },
-        data: { balance: { increment: transaction.amount } },
-      });
-      await prisma.account.update({
-        where: { id: transaction.toAccountId },
-        data: { balance: { decrement: transaction.amount } },
-      });
-    }
-
-    const contribution = await prisma.goalContribution.findFirst({
-      where: { sourceTransactionId: id },
-    });
-
-    if (contribution) {
-      await prisma.goal.update({
-        where: { id: contribution.goalId },
-        data: { currentAmount: { decrement: contribution.amount } },
-      });
-
-      const goal = await prisma.goal.findUnique({ where: { id: contribution.goalId } });
-      if (goal && goal.status === 'COMPLETED') {
-        await prisma.goal.update({
-          where: { id: contribution.goalId },
-          data: { status: 'ACTIVE' },
+    await prisma.$transaction(async (tx) => {
+      if (transaction.type === 'INCOME' || transaction.type === 'EXPENSE') {
+        const adjustment = transaction.type === 'INCOME' ? -Number(transaction.amount) : Number(transaction.amount);
+        await tx.account.update({
+          where: { id: transaction.accountId },
+          data: { balance: { increment: adjustment } },
         });
       }
 
-      await prisma.goalContribution.delete({
-        where: { id: contribution.id },
-      });
-    }
+      if (transaction.type === 'TRANSFER' && transaction.fromAccountId && transaction.toAccountId) {
+        const totalRefund = Number(transaction.amount) + Number(transaction.adminFee ?? 0);
+        await tx.account.update({
+          where: { id: transaction.fromAccountId },
+          data: { balance: { increment: totalRefund } },
+        });
+        await tx.account.update({
+          where: { id: transaction.toAccountId },
+          data: { balance: { decrement: transaction.amount } },
+        });
+      }
 
-    await prisma.transaction.delete({ where: { id } });
+      const contribution = await tx.goalContribution.findFirst({
+        where: { sourceTransactionId: id },
+      });
+
+      if (contribution) {
+        await tx.goal.update({
+          where: { id: contribution.goalId },
+          data: { currentAmount: { decrement: contribution.amount } },
+        });
+
+        const goal = await tx.goal.findUnique({ where: { id: contribution.goalId } });
+        if (goal && goal.status === 'COMPLETED') {
+          await tx.goal.update({
+            where: { id: contribution.goalId },
+            data: { status: 'ACTIVE' },
+          });
+        }
+
+        await tx.goalContribution.delete({
+          where: { id: contribution.id },
+        });
+      }
+
+      await tx.transaction.delete({ where: { id } });
+    });
   }
 
   async getRecent(userId: string, limit: number = 5) {
