@@ -235,6 +235,7 @@ model Transaction {
   fromAccountId     String?
   toAccountId       String?
   isRecurring       Boolean         @default(false)
+  deductGoals        Boolean         @default(false)
   recurringPattern  Json?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt

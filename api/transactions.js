@@ -48,10 +48,33 @@ export default async function handler(req, res) {
         date: body.date ? new Date(body.date).toISOString() : new Date().toISOString(),
         fromAccountId: body.fromAccountId || null,
         toAccountId: body.toAccountId || null,
-        isRecurring: body.isRecurring || false
+        isRecurring: body.isRecurring || false,
+        deductGoals: body.deductGoals || false
       },
       include: { account: true, category: true }
     });
+
+    if (body.deductGoals === true) {
+      const account = await db.account.findFirst({ where: { id: body.accountId, userId: token.userId } });
+      if (!account?.linkedGoalId) {
+        await db.transaction.delete({ where: { id: transaction.id } });
+        res.status(400).send(JSON.stringify({ message: 'Akun ini tidak terhubung dengan Goals manapun' }));
+        return;
+      }
+
+      const goal = await db.goal.findFirst({ where: { id: account.linkedGoalId, userId: token.userId } });
+      if (!goal || Number(goal.currentAmount) < Number(body.amount)) {
+        await db.transaction.delete({ where: { id: transaction.id } });
+        res.status(400).send(JSON.stringify({ message: 'Jumlah Goals tidak mencukupi untuk transaksi ini' }));
+        return;
+      }
+
+      await db.goal.update({
+        where: { id: goal.id },
+        data: { currentAmount: { decrement: Number(body.amount) } }
+      });
+    }
+
     res.status(201).send(JSON.stringify({ transaction }));
     return;
   }
@@ -71,23 +94,84 @@ export default async function handler(req, res) {
   // PUT update transaction
   if (transactionMatch && method === 'PUT') {
     const body = parseBody(req.body);
+    const oldTransaction = await db.transaction.findFirst({ where: { id: transactionMatch[1], userId: token.userId } });
+    if (!oldTransaction) {
+      res.status(404).send(JSON.stringify({ message: 'Transaction not found' }));
+      return;
+    }
+
     const updateData = { ...body };
     if (body.date) updateData.date = new Date(body.date).toISOString();
     if (body.fromAccountId === '') updateData.fromAccountId = null;
     if (body.toAccountId === '') updateData.toAccountId = null;
     if (body.categoryId === '') updateData.categoryId = null;
+
+    const amountDiff = body.amount !== undefined ? Number(body.amount) - Number(oldTransaction.amount) : 0;
     const transaction = await db.transaction.update({
       where: { id: transactionMatch[1] },
-      data: updateData
+      data: updateData,
+      include: { account: true, category: true }
     });
+
+    if (oldTransaction.deductGoals === true && amountDiff !== 0) {
+      const oldAccount = await db.account.findFirst({ where: { id: oldTransaction.accountId, userId: token.userId } });
+      if (oldAccount?.linkedGoalId) {
+        const goal = await db.goal.findFirst({ where: { id: oldAccount.linkedGoalId, userId: token.userId } });
+        if (goal) {
+          const newAmount = Number(goal.currentAmount) - amountDiff;
+          if (newAmount < 0) {
+            res.status(400).send(JSON.stringify({ message: 'Jumlah Goals tidak mencukupi untuk perubahan ini' }));
+            return;
+          }
+          await db.goal.update({
+            where: { id: goal.id },
+            data: { currentAmount: { decrement: amountDiff } }
+          });
+          await db.account.update({
+            where: { id: oldAccount.id },
+            data: { balance: { increment: amountDiff } }
+          });
+          if (oldTransaction.categoryId) {
+            await db.budget.updateMany({
+              where: { userId: token.userId, categoryId: oldTransaction.categoryId },
+              data: { spent: { increment: amountDiff } }
+            });
+          }
+        }
+      }
+    }
+
     res.status(200).send(JSON.stringify({ transaction }));
     return;
   }
 
   // DELETE transaction
   if (transactionMatch && method === 'DELETE') {
+    const oldTransaction = await db.transaction.findFirst({ where: { id: transactionMatch[1], userId: token.userId } });
+    if (!oldTransaction) {
+      res.status(404).send(JSON.stringify({ message: 'Transaction not found' }));
+      return;
+    }
+
+    if (oldTransaction.deductGoals === true) {
+      const account = await db.account.findFirst({ where: { id: oldTransaction.accountId, userId: token.userId } });
+      if (account?.linkedGoalId) {
+        await db.goal.update({
+          where: { id: account.linkedGoalId },
+          data: { currentAmount: { increment: Number(oldTransaction.amount) } }
+        });
+      }
+    }
+
+    if (oldTransaction.categoryId) {
+      await db.budget.updateMany({
+        where: { userId: token.userId, categoryId: oldTransaction.categoryId },
+        data: { spent: { decrement: Number(oldTransaction.amount) } }
+      });
+    }
+
     await db.transaction.delete({ where: { id: transactionMatch[1] } });
-    res.status(204).send(JSON.stringify({ message: 'Deleted' }));
+    res.status(204).end();
     return;
   }
 
