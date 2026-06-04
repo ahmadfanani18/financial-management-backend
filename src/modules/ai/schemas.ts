@@ -24,7 +24,16 @@ export type GeneratePlanInput = z.infer<typeof generatePlanSchema>;
 export type PredictSpendingInput = z.infer<typeof predictSpendingSchema>;
 export type GeneratePlanFromDataInput = z.infer<typeof generatePlanFromDataSchema>;
 
+export interface SmartSaverOption {
+  label: string;
+  monthlyNeeded: number;
+  estimatedMonths: number;
+  feasibility: 'safe' | 'tight' | 'aggressive';
+}
+
 export interface SmartSaverResult {
+  options: SmartSaverOption[];
+  recommended: 'conservative' | 'balanced' | 'aggressive';
   progress: number;
   remainingNeeded: number;
   monthlyNeeded: number;
@@ -33,9 +42,12 @@ export interface SmartSaverResult {
   targetDate: string;
   feasibility: 'safe' | 'tight' | 'aggressive';
   insight: string;
-  suggestion?: {
-    monthlyBudget: number;
-    reason: string;
+  context: {
+    monthlyIncome: number;
+    monthlyExpense: number;
+    totalBalance: number;
+    existingGoalsCount: number;
+    existingGoalMonthlyContribution: number;
   };
 }
 

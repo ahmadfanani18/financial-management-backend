@@ -560,7 +560,7 @@ async predictSpending(userId: string, input: PredictSpendingInput) {
       totalAccountBalance: totalBalance,
       activeGoalsCount: goals.length,
       monthlyIncome: income,
-      monthlyExpenses: expenses,
+      monthlyExpenseToUses: expenses,
       message: suggestions.length > 0 
         ? `Ditemukan ${suggestions.length} saran berdasarkan analisis keuangan Anda bulan ini.`
         : 'Pertahankan kebiasaan keuangan Anda yang baik!',
@@ -599,7 +599,7 @@ async predictSpending(userId: string, input: PredictSpendingInput) {
     const totalExpense = transactions
       .filter(t => t.type === 'EXPENSE')
       .reduce((sum, t) => sum + Number(t.amount), 0);
-    const monthlyExpense = totalExpense / actualMonths;
+    const monthlyExpenseToUse = totalExpense / actualMonths;
 
     if (transactions.length < 5 || totalIncome === 0) {
       return {
@@ -622,7 +622,7 @@ async predictSpending(userId: string, input: PredictSpendingInput) {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5);
 
-    const savings = monthlyIncome - monthlyExpense;
+    const savings = monthlyIncome - monthlyExpenseToUse;
     const savingsDisplay = savings > 0 
       ? savings.toLocaleString('id-ID')
       : `Terjadi deficit ${Math.abs(savings).toLocaleString('id-ID')}`;
@@ -634,7 +634,7 @@ async predictSpending(userId: string, input: PredictSpendingInput) {
 
     const milestones: Array<{title: string; description: string; targetDate: Date; targetAmount: number}> = [];
 
-    const emergencyFundTarget = monthlyExpense * 6;
+    const emergencyFundTarget = monthlyExpenseToUse * 6;
     const incomePercent = monthlyIncome > 0 ? Math.round((emergencyFundTarget / monthlyIncome) * 100) : 0;
     milestones.push({
       title: 'Dana Darurat',
@@ -673,7 +673,7 @@ async predictSpending(userId: string, input: PredictSpendingInput) {
       });
     }
 
-    if (totalBalance > monthlyExpense * 3 && savings > 0) {
+    if (totalBalance > monthlyExpenseToUse * 3 && savings > 0) {
       milestones.push({
         title: 'Mulai Investasi',
         description: 'Mulai investasi dengan 10% dari surplus',
@@ -686,7 +686,7 @@ async predictSpending(userId: string, input: PredictSpendingInput) {
       error: false,
       plan: {
         name: planName,
-        description: `Rencana keuangan berdasarkan analisis data ${actualMonths} bulan terakhir. Pendapatan rata-rata: ${Math.round(monthlyIncome).toLocaleString('id-ID')}/bulan, Pengeluaran: ${Math.round(monthlyExpense).toLocaleString('id-ID')}/bulan.`,
+        description: `Rencana keuangan berdasarkan analisis data ${actualMonths} bulan terakhir. Pendapatan rata-rata: ${Math.round(monthlyIncome).toLocaleString('id-ID')}/bulan, Pengeluaran: ${Math.round(monthlyExpenseToUse).toLocaleString('id-ID')}/bulan.`,
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
         status: 'ACTIVE' as const,
@@ -701,7 +701,7 @@ async predictSpending(userId: string, input: PredictSpendingInput) {
       summary: {
         totalBalance: totalBalance.toLocaleString('id-ID'),
         monthlyIncome: Math.round(monthlyIncome).toLocaleString('id-ID'),
-        monthlyExpense: Math.round(monthlyExpense).toLocaleString('id-ID'),
+        monthlyExpenseToUse: Math.round(monthlyExpenseToUse).toLocaleString('id-ID'),
         savings: savingsDisplay,
         topExpenses: topExpenses.slice(0, 3).map(([cat, amt]) => ({ category: cat, amount: amt })),
       },
@@ -720,27 +720,37 @@ export class SmartSaverService {
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     
-    // 1. Get account balances
+    // 1. Get account balances (exclude locked accounts)
     const accounts = await prisma.account.findMany({
-      where: { userId, isArchived: false },
+      where: { userId, isArchived: false, isLocked: false },
       select: { id: true, name: true, balance: true },
     });
     const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
     
-    // 2. Get monthly income (3 months average)
+    // 2. Get monthly income - take only largest transaction per month
     const incomeTransactions = await prisma.transaction.findMany({
       where: { userId, date: { gte: threeMonthsAgo }, type: 'INCOME' },
     });
-    const totalIncome = incomeTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
-    const monthlyIncome = totalIncome / 3;
     
-    // 3. Get monthly expenses (3 months average)
+    // Group by month and take largest per month
+    const incomeByMonth: Record<string, number[]> = {};
+    incomeTransactions.forEach(t => {
+      const monthKey = `${new Date(t.date).getFullYear()}-${String(new Date(t.date).getMonth() + 1).padStart(2, '0')}`;
+      if (!incomeByMonth[monthKey]) incomeByMonth[monthKey] = [];
+      incomeByMonth[monthKey].push(Number(t.amount));
+    });
+    
+    const monthlyIncomeValues = Object.values(incomeByMonth).map(amounts => Math.max(...amounts));
+    const monthlyIncome = monthlyIncomeValues.length > 0 
+      ? monthlyIncomeValues.reduce((sum, val) => sum + val, 0) / monthlyIncomeValues.length 
+      : 0;
+    
+    // 3. Get monthly expenses (actual)
     const expenseTransactions = await prisma.transaction.findMany({
       where: { userId, date: { gte: threeMonthsAgo }, type: 'EXPENSE' },
       include: { category: true },
     });
     const totalExpense = expenseTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
-    const monthlyExpense = totalExpense / 3;
     
     // 4. Get active budgets for this month
     const budgets = await prisma.budget.findMany({
@@ -754,108 +764,97 @@ export class SmartSaverService {
     });
     const totalBudgetAmount = budgets.reduce((sum, b) => sum + Number(b.amount), 0);
     
+    // Calculate available for savings = Income - Budget Commitments
+    const availableForSavings = monthlyIncome - totalBudgetAmount;
+    
+    // Use higher of budget or actual expense, but sanity check
+    // If budget is > 5x actual expense, it's probably not realistic
+    const monthlyExpenseToUseActual = totalExpense / 3;
+    const monthlyExpense = totalBudgetAmount > monthlyExpenseToUseActual * 5 
+      ? monthlyExpenseToUseActual 
+      : totalBudgetAmount;
+    
     // 5. Get existing goals with required monthly contributions
     const activeGoals = await prisma.goal.findMany({
       where: { userId, status: 'ACTIVE' },
     });
     
     let existingGoalMonthlyContribution = 0;
-    let existingGoalTotalRemaining = 0;
     
     for (const goal of activeGoals) {
       const remaining = Number(goal.targetAmount) - Number(goal.currentAmount);
       if (remaining > 0) {
-        existingGoalTotalRemaining += remaining;
         const daysLeft = Math.max(1, Math.ceil((new Date(goal.deadline).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
         const monthsLeft = Math.max(1, daysLeft / 30);
         existingGoalMonthlyContribution += remaining / monthsLeft;
       }
     }
     
-    // 6. Calculate available savings capacity
-    // Formula: Income - Essential Expenses - Existing Goal Contributions
-    const essentialExpensePercent = 0.5; // Assume 50% for essential needs
-    const essentialExpense = monthlyIncome * essentialExpensePercent;
-    const remainingAfterEssential = monthlyIncome - essentialExpense;
+    // 6. Calculate remaining for new goal
+    const remainingForNewGoal = Math.max(0, availableForSavings - existingGoalMonthlyContribution);
     
-    // Available for new goal + existing goals
-    const availableForGoals = remainingAfterEssential;
-    
-    // What percentage of income is already committed to existing goals?
-    const existingGoalPercent = (existingGoalMonthlyContribution / monthlyIncome) * 100;
-    
-    // Calculate optimal monthly savings for this new goal
-    // We want to maximize savings without making it infeasible
-    // Formula: (Available) - (existingGoalMonthlyContribution * 1.2 for buffer) + something
-    
-    let suggestedMonthlyBudget: number;
+    // Generate insight
     let insight: string;
-    
-    if (monthlyBudget && monthlyBudget > 0) {
-      // User specified budget
-      suggestedMonthlyBudget = monthlyBudget;
-      insight = `Tabungan Rp ${monthlyBudget.toLocaleString('id-ID')}/bulan untuk ${itemName || 'target'}`;
+    if (existingGoalMonthlyContribution > 0) {
+      insight = `Berdasarkan kondisi keuangan Anda (pendapatan Rp ${Math.round(monthlyIncome).toLocaleString('id-ID')}/bulan, budget komitmen Rp ${Math.round(totalBudgetAmount).toLocaleString('id-ID')}/bulan). `;
+      insight += `Sisa yang tersedia untuk ditabung: Rp ${Math.round(remainingForNewGoal).toLocaleString('id-ID')}/bulan. `;
+      insight += `Dengan goal aktif lain membutuhkan Rp ${Math.round(existingGoalMonthlyContribution).toLocaleString('id-ID')}/bulan.`;
     } else {
-      // Calculate optimal budget based on full financial picture
-      
-      // Calculate how much can realistically be saved
-      // 1. Start with what's left after essential needs
-      // 2. Reserve 20% buffer for existing goals
-      // 3. Remainder available for new goal
-      
-      const bufferForExistingGoals = existingGoalMonthlyContribution * 1.2;
-      const availableForNewGoal = Math.max(0, availableForGoals - bufferForExistingGoals);
-      
-      // Suggest 80% of what's available (conservative)
-      suggestedMonthlyBudget = Math.round(availableForNewGoal * 0.8);
-      
-      // Ensure minimum budget
-      suggestedMonthlyBudget = Math.max(suggestedMonthlyBudget, Math.round(targetPrice / 24)); // Max 2 years
-      
-      // Ensure it's not too aggressive
-      const maxAggressive = monthlyIncome * 0.35;
-      suggestedMonthlyBudget = Math.min(suggestedMonthlyBudget, maxAggressive);
-      
-      // Build insight
-      const savingsPercent = Math.round((suggestedMonthlyBudget / monthlyIncome) * 100);
-      
-      if (existingGoalMonthlyContribution > 0) {
-        insight = `Berdasarkan kondisi keuangan Anda (pendapatan Rp ${Math.round(monthlyIncome).toLocaleString('id-ID')}/bulan, pengeluaran Rp ${Math.round(monthlyExpense).toLocaleString('id-ID')}/bulan). `;
-        insight += `Tabungan yang disarankan: Rp ${suggestedMonthlyBudget.toLocaleString('id-ID')}/bulan (${savingsPercent}% dari pendapatan). `;
-        insight += `Dengan goal aktif lain membutuhkan Rp ${Math.round(existingGoalMonthlyContribution).toLocaleString('id-ID')}/bulan.`;
-      } else {
-        insight = `Berdasarkan analisis data Anda: pendapatan Rp ${Math.round(monthlyIncome).toLocaleString('id-ID')}/bulan, pengeluaran Rp ${Math.round(monthlyExpense).toLocaleString('id-ID')}/bulan. `;
-        insight += `Tabungan yang disarankan: Rp ${suggestedMonthlyBudget.toLocaleString('id-ID')}/bulan (${savingsPercent}% dari pendapatan).`;
-      }
+      insight = `Berdasarkan kondisi keuangan Anda (pendapatan Rp ${Math.round(monthlyIncome).toLocaleString('id-ID')}/bulan, budget komitmen Rp ${Math.round(totalBudgetAmount).toLocaleString('id-ID')}/bulan). `;
+      insight += `Sisa yang tersedia untuk ditabung: Rp ${Math.round(availableForSavings).toLocaleString('id-ID')}/bulan.`;
     }
     
-    // Calculate feasibility
-    const ratio = suggestedMonthlyBudget / monthlyIncome;
-    let feasibility: 'safe' | 'tight' | 'aggressive';
-    if (ratio <= 0.15) feasibility = 'safe';
-    else if (ratio <= 0.25) feasibility = 'tight';
-    else {
-      feasibility = 'aggressive';
-      insight += ` Target ini cukup agresif karena ${Math.round(ratio * 100)}% dari pendapatan.`;
-    }
+    // If remaining is 0 or negative, use availableForSavings as the base
+    const baseForOptions = remainingForNewGoal > 0 ? remainingForNewGoal : availableForSavings;
     
-    const estimatedMonths = Math.ceil(targetPrice / suggestedMonthlyBudget);
-    const targetDate = new Date(now);
-    targetDate.setMonth(targetDate.getMonth() + estimatedMonths);
+    // Generate 3 options with exact division
+    // Conservative = 12 months, Balanced = 6 months, Aggressive = 3 months
+    const conservativeMonthly = Math.round(targetPrice / 12);
+    const balancedMonthly = Math.round(targetPrice / 6);
+    const aggressiveMonthly = Math.round(targetPrice / 3);
     
-    // Check if target is too ambitious
-    if (targetPrice > monthlyIncome * 6) {
-      insight += ` Perhatian: Target ini lebih dari 6x pendapatan bulanan.`;
+    // Determine feasibility based on affordability
+    const isConservativeAffordable = conservativeMonthly <= baseForOptions * 0.5;
+    const isBalancedAffordable = balancedMonthly <= baseForOptions * 0.5;
+    const isAggressiveAffordable = aggressiveMonthly <= baseForOptions * 0.5;
+    
+    const options: Array<{ label: string; monthlyNeeded: number; estimatedMonths: number; feasibility: 'safe' | 'tight' | 'aggressive' }> = [
+      {
+        label: 'Conservative',
+        monthlyNeeded: conservativeMonthly,
+        estimatedMonths: 12,
+        feasibility: isConservativeAffordable ? 'safe' : 'aggressive',
+      },
+      {
+        label: 'Balanced',
+        monthlyNeeded: balancedMonthly,
+        estimatedMonths: 6,
+        feasibility: isBalancedAffordable ? 'tight' : 'aggressive',
+      },
+      {
+        label: 'Aggressive',
+        monthlyNeeded: aggressiveMonthly,
+        estimatedMonths: 3,
+        feasibility: isAggressiveAffordable ? 'aggressive' : 'aggressive',
+      },
+    ];
+    
+    // Determine recommended based on affordability
+    let recommended: 'conservative' | 'balanced' | 'aggressive';
+    if (isConservativeAffordable) {
+      recommended = 'conservative';
+    } else if (isBalancedAffordable) {
+      recommended = 'balanced';
+    } else {
+      recommended = 'aggressive';
     }
     
     return {
+      options,
+      recommended,
       progress: 0,
       remainingNeeded: targetPrice,
-      monthlyNeeded: suggestedMonthlyBudget,
-      estimatedMonths,
       startDate: now.toISOString(),
-      targetDate: targetDate.toISOString(),
-      feasibility,
       insight,
       context: {
         monthlyIncome: Math.round(monthlyIncome),
