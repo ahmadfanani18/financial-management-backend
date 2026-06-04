@@ -254,68 +254,132 @@ export class TransactionService {
     const existing = await this.getById(id, userId);
     const { tagIds, ...data } = input;
 
-    if (existing.type === 'INCOME' || existing.type === 'EXPENSE') {
-      const reverse = existing.type === 'INCOME' ? -existing.amount : existing.amount;
-      await prisma.account.update({
-        where: { id: existing.accountId },
-        data: { balance: { increment: reverse } },
-      });
-    }
+    const newType = input.type ?? existing.type;
+    const newAmount = input.amount ?? Number(existing.amount);
+    const newAdminFee = input.adminFee ?? Number(existing.adminFee ?? 0);
+    const newFromAccountId = input.fromAccountId ?? existing.fromAccountId;
+    const newToAccountId = input.toAccountId ?? existing.toAccountId;
+    const newAccountId = input.accountId ?? existing.accountId;
 
-    if (existing.type === 'TRANSFER' && existing.fromAccountId && existing.toAccountId) {
-      await prisma.account.update({
-        where: { id: existing.fromAccountId },
-        data: { balance: { increment: existing.amount } },
-      });
-      await prisma.account.update({
-        where: { id: existing.toAccountId },
-        data: { balance: { decrement: existing.amount } },
-      });
+    if (newType === 'TRANSFER' && newAdminFee > newAmount) {
+      throw new Error('Biaya admin tidak boleh lebih besar dari jumlah transfer');
     }
 
     const sanitizedData: any = { ...data };
     if (sanitizedData.fromAccountId === '') sanitizedData.fromAccountId = null;
     if (sanitizedData.toAccountId === '') sanitizedData.toAccountId = null;
+    sanitizedData.adminFee = newAdminFee;
 
-    await prisma.transaction.update({
-      where: { id },
-      data: sanitizedData,
+    await prisma.$transaction(async (tx) => {
+      if (existing.type === 'INCOME' || existing.type === 'EXPENSE') {
+        const reverse = existing.type === 'INCOME' ? -Number(existing.amount) : Number(existing.amount);
+        await tx.account.update({
+          where: { id: existing.accountId },
+          data: { balance: { increment: reverse } },
+        });
+      }
+
+      if (existing.type === 'TRANSFER' && existing.fromAccountId && existing.toAccountId) {
+        const existingTotalDeduct = Number(existing.amount) + Number(existing.adminFee ?? 0);
+        await tx.account.update({
+          where: { id: existing.fromAccountId },
+          data: { balance: { increment: existingTotalDeduct } },
+        });
+        await tx.account.update({
+          where: { id: existing.toAccountId },
+          data: { balance: { decrement: existing.amount } },
+        });
+      }
+
+      const existingContribution = await tx.goalContribution.findFirst({
+        where: { sourceTransactionId: id },
+      });
+      if (existingContribution) {
+        await tx.goal.update({
+          where: { id: existingContribution.goalId },
+          data: { currentAmount: { decrement: existingContribution.amount } },
+        });
+        await tx.goalContribution.delete({
+          where: { id: existingContribution.id },
+        });
+      }
+
+      if (newType === 'INCOME' || newType === 'EXPENSE') {
+        const adjustment = newType === 'INCOME' ? newAmount : -newAmount;
+        await tx.account.update({
+          where: { id: newAccountId },
+          data: { balance: { increment: adjustment } },
+        });
+
+        if (newType === 'EXPENSE' && sanitizedData.categoryId) {
+          const category = await tx.category.findFirst({
+            where: { id: sanitizedData.categoryId, name: { startsWith: 'Tabungan -' } },
+          });
+          if (category) {
+            const goalName = category.name.replace('Tabungan - ', '').trim();
+            const goal = await tx.goal.findFirst({ where: { userId, name: goalName, isLocked: false } });
+            if (goal) {
+              await tx.goalContribution.create({
+                data: {
+                  goalId: goal.id,
+                  amount: newAmount,
+                  date: new Date(sanitizedData.date),
+                  note: sanitizedData.note || `Dari transaksi: ${category.name}`,
+                  accountId: newAccountId,
+                  sourceTransactionId: id,
+                },
+              });
+              await tx.goal.update({ where: { id: goal.id }, data: { currentAmount: { increment: newAmount } } });
+            }
+          }
+        }
+      }
+
+      if (newType === 'TRANSFER' && newFromAccountId && newToAccountId) {
+        const newTotalDeduct = newAmount + newAdminFee;
+        await tx.account.update({
+          where: { id: newFromAccountId },
+          data: { balance: { decrement: newTotalDeduct } },
+        });
+        await tx.account.update({
+          where: { id: newToAccountId },
+          data: { balance: { increment: newAmount } },
+        });
+
+        const toAccount = await tx.account.findUnique({ where: { id: newToAccountId }, include: { linkedGoal: true } });
+        if (toAccount?.linkedGoal && toAccount.isLocked) {
+          const goal = toAccount.linkedGoal;
+          if (Number(goal.currentAmount) < Number(goal.targetAmount)) {
+            await tx.goalContribution.create({
+              data: {
+                goalId: goal.id,
+                amount: newAmount,
+                accountId: newToAccountId,
+                type: 'AUTO',
+                note: `Auto dari transfer ke ${toAccount.name}`,
+                date: new Date(),
+                sourceTransactionId: id,
+              },
+            });
+            await tx.goal.update({ where: { id: goal.id }, data: { currentAmount: { increment: newAmount } } });
+          }
+        }
+      }
+
+      await tx.transaction.update({
+        where: { id },
+        data: sanitizedData,
+      });
+
+      if (tagIds !== undefined) {
+        await tx.transactionTag.deleteMany({ where: { transactionId: id } });
+        if (tagIds.length > 0) {
+          await tx.transactionTag.createMany({
+            data: tagIds.map(tagId => ({ transactionId: id, tagId })),
+          });
+        }
+      }
     });
-
-    if (tagIds) {
-      await prisma.transactionTag.deleteMany({ where: { transactionId: id } });
-      await prisma.transactionTag.createMany({
-        data: tagIds.map(tagId => ({
-          transactionId: id,
-          tagId,
-        })),
-      });
-    }
-
-    const newType = input.type ?? existing.type;
-    const newAmount = input.amount ?? existing.amount;
-    const newAccountId = input.accountId ?? existing.accountId;
-    const newFromAccountId = input.fromAccountId ?? existing.fromAccountId;
-    const newToAccountId = input.toAccountId ?? existing.toAccountId;
-
-    if (newType === 'INCOME' || newType === 'EXPENSE') {
-      const adjustment = newType === 'INCOME' ? newAmount : -newAmount;
-      await prisma.account.update({
-        where: { id: newAccountId },
-        data: { balance: { increment: adjustment } },
-      });
-    }
-
-    if (newType === 'TRANSFER' && newFromAccountId && newToAccountId) {
-      await prisma.account.update({
-        where: { id: newFromAccountId },
-        data: { balance: { decrement: newAmount } },
-      });
-      await prisma.account.update({
-        where: { id: newToAccountId },
-        data: { balance: { increment: newAmount } },
-      });
-    }
 
     return this.getById(id, userId);
   }
