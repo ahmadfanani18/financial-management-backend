@@ -14,21 +14,23 @@ function getLocalMonth(date) {
   const local = toLocalDate(date);
   return local.getMonth();
 }
+
+function calculateEndDate(startDate, period) {
   const start = new Date(startDate);
   switch (period) {
     case 'MONTHLY':
       return new Date(start.getUTCFullYear(), start.getUTCMonth() + 1, 0, 23, 59, 59, 999);
     case 'WEEKLY': {
       const end = new Date(start);
-      end.setDate(end.getDate() + 6);
-      end.setHours(23, 59, 59, 999);
+      end.setUTCDate(end.getUTCDate() + 6);
+      end.setUTCHours(23, 59, 59, 999);
       return end;
     }
     case 'YEARLY': {
       const end = new Date(start);
-      end.setFullYear(end.getUTCFullYear() + 1);
-      end.setDate(end.getDate() - 1);
-      end.setHours(23, 59, 59, 999);
+      end.setUTCFullYear(end.getUTCFullYear() + 1);
+      end.setUTCDate(end.getUTCDate() - 1);
+      end.setUTCHours(23, 59, 59, 999);
       return end;
     }
     default:
