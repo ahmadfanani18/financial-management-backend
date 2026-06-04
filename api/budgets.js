@@ -25,14 +25,35 @@ export default async function handler(req, res) {
 
   // GET all budgets
   if (url === '/api/budgets' && method === 'GET') {
+    const queryParams = new URLSearchParams(req.url.split('?')[1] || '');
+    const month = queryParams.get('month');
+    
     const budgets = await db.budget.findMany({ where: { userId: token.userId }, include: { category: true } });
+    
+    let filteredBudgets = budgets;
+    if (month) {
+      const [year, monthNum] = month.split('-');
+      const targetDate = new Date(parseInt(year), parseInt(monthNum) - 1, 1);
+      const targetYear = targetDate.getFullYear();
+      const targetMonth = targetDate.getMonth();
+      
+      filteredBudgets = budgets.filter((budget) => {
+        const start = new Date(budget.startDate);
+        const end = budget.endDate ? new Date(budget.endDate) : new Date(start.getFullYear(), start.getMonth() + 1, 0);
+        const budgetStart = new Date(start.getFullYear(), start.getMonth(), 1);
+        const budgetEnd = new Date(end.getFullYear(), end.getMonth(), 1);
+        const target = new Date(targetYear, targetMonth, 1);
+        return target >= budgetStart && target <= budgetEnd;
+      });
+    }
+    
     const allExpenses = await db.transaction.groupBy({
       by: ['categoryId'],
       where: { userId: token.userId, type: 'EXPENSE' },
       _sum: { amount: true }
     });
     const expenseByCategory = Object.fromEntries(allExpenses.map(e => [e.categoryId, Math.abs(Number(e._sum.amount || 0))]));
-    const budgetsWithSpent = budgets.map(b => {
+    const budgetsWithSpent = filteredBudgets.map(b => {
       const spent = expenseByCategory[b.categoryId] || 0;
       return { ...b, spent, remaining: Number(b.amount) - spent, percentage: b.amount > 0 ? Math.round((spent / Number(b.amount)) * 100) : 0 };
     });
