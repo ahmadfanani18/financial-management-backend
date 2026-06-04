@@ -10,4 +10,3 @@ coverage/
 
 # Git worktrees
 .worktrees/
-api-dist/
