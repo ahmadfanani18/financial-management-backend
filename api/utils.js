@@ -34,8 +34,14 @@ async function getPrisma() {
   if (!prisma) {
     const { PrismaClient } = await import('@prisma/client');
     let databaseUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
-    if (databaseUrl && !databaseUrl.includes('connection_limit')) {
-      databaseUrl += databaseUrl.includes('?') ? '&connection_limit=1' : '?connection_limit=1';
+    if (databaseUrl) {
+      const separator = databaseUrl.includes('?') ? '&' : '?';
+      if (!databaseUrl.includes('connection_limit')) {
+        databaseUrl += separator + 'connection_limit=5';
+      }
+      if (!databaseUrl.includes('pool_timeout')) {
+        databaseUrl += '&pool_timeout=10';
+      }
     }
     prisma = new PrismaClient({
       datasources: databaseUrl ? { db: { url: databaseUrl } } : undefined,
