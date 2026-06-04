@@ -1,6 +1,19 @@
 import { getPrisma, parseBody, setupCors, parseToken } from './utils.js';
 
-function calculateEndDate(startDate, period) {
+function toLocalDate(dateStr) {
+  const d = new Date(dateStr);
+  return new Date(d.getTime() + (7 * 60 * 60 * 1000));
+}
+
+function getLocalYear(date) {
+  const local = toLocalDate(date);
+  return local.getFullYear();
+}
+
+function getLocalMonth(date) {
+  const local = toLocalDate(date);
+  return local.getMonth();
+}
   const start = new Date(startDate);
   switch (period) {
     case 'MONTHLY':
@@ -66,10 +79,12 @@ export default async function handler(req, res) {
       const targetMonth = targetDate.getUTCMonth();
       
       const filteredBudgets = budgets.filter((budget) => {
-        const start = new Date(budget.startDate);
-        const end = budget.endDate ? new Date(budget.endDate) : calculateEndDate(start, budget.period);
-        const budgetStart = new Date(start.getUTCFullYear(), start.getUTCMonth(), 1);
-        const budgetEnd = new Date(end.getUTCFullYear(), end.getUTCMonth(), 1);
+        const startLocalYear = getLocalYear(budget.startDate);
+        const startLocalMonth = getLocalMonth(budget.startDate);
+        const endLocalYear = budget.endDate ? getLocalYear(budget.endDate) : getLocalYear(budget.startDate);
+        const endLocalMonth = budget.endDate ? getLocalMonth(budget.endDate) : getLocalMonth(budget.startDate);
+        const budgetStart = new Date(startLocalYear, startLocalMonth, 1);
+        const budgetEnd = new Date(endLocalYear, endLocalMonth, 1);
         const target = new Date(targetYear, targetMonth, 1);
         return target >= budgetStart && target <= budgetEnd;
       });
@@ -148,10 +163,12 @@ export default async function handler(req, res) {
       const targetMonth = targetDate.getUTCMonth();
       
       const filteredBudgets = budgets.filter((budget) => {
-        const start = new Date(budget.startDate);
-        const end = budget.endDate ? new Date(budget.endDate) : calculateEndDate(start, budget.period);
-        const budgetStart = new Date(start.getUTCFullYear(), start.getUTCMonth(), 1);
-        const budgetEnd = new Date(end.getUTCFullYear(), end.getUTCMonth(), 1);
+        const startLocalYear = getLocalYear(budget.startDate);
+        const startLocalMonth = getLocalMonth(budget.startDate);
+        const endLocalYear = budget.endDate ? getLocalYear(budget.endDate) : getLocalYear(budget.startDate);
+        const endLocalMonth = budget.endDate ? getLocalMonth(budget.endDate) : getLocalMonth(budget.startDate);
+        const budgetStart = new Date(startLocalYear, startLocalMonth, 1);
+        const budgetEnd = new Date(endLocalYear, endLocalMonth, 1);
         const target = new Date(targetYear, targetMonth, 1);
         return target >= budgetStart && target <= budgetEnd;
       });
