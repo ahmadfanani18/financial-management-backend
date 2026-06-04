@@ -7,6 +7,7 @@ export const createTransactionSchema = z.object({
   amount: z.number().positive('Jumlah harus positif'),
   adminFee: z.number().min(0, 'Biaya admin tidak boleh negatif').optional(),
   description: z.string().default(''),
+  note: z.string().optional(),
   date: z.coerce.date(),
   receiptUrl: z.string().url().optional(),
   fromAccountId: z.string().optional(),

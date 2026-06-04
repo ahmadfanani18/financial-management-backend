@@ -143,85 +143,109 @@ export class TransactionService {
       await this.validateCategoryForExpense(userId, input.categoryId, new Date(input.date));
     }
 
-    const { tagIds, ...data } = input;
-    
-    const transaction = await prisma.transaction.create({
-      data: {
-        ...data,
-        userId,
-      },
-    });
-
-    if (tagIds?.length) {
-      await prisma.transactionTag.createMany({
-        data: tagIds.map(tagId => ({
-          transactionId: transaction.id,
-          tagId,
-        })),
-      });
+    if (input.type === 'TRANSFER' && input.adminFee && input.adminFee > Number(input.amount)) {
+      throw new Error('Biaya admin tidak boleh lebih besar dari jumlah transfer');
     }
 
-    if (input.type === 'INCOME' || input.type === 'EXPENSE') {
-      const adjustment = input.type === 'INCOME' ? input.amount : -input.amount;
-      await prisma.account.update({
-        where: { id: input.accountId },
-        data: { balance: { increment: adjustment } },
+    const { tagIds, ...data } = input;
+    const adminFee = Number(input.adminFee ?? 0);
+
+    const transactionData = {
+      type: input.type,
+      amount: input.amount,
+      accountId: input.accountId,
+      categoryId: input.categoryId,
+      fromAccountId: input.fromAccountId,
+      toAccountId: input.toAccountId,
+      description: input.description || '',
+      note: input.note,
+      date: new Date(input.date),
+      receiptUrl: input.receiptUrl,
+      isRecurring: input.isRecurring,
+      recurringPattern: input.recurringPattern,
+      userId,
+      adminFee,
+    };
+
+    const transaction = await prisma.$transaction(async (tx) => {
+      const record = await tx.transaction.create({
+        data: transactionData,
       });
 
-      if (input.type === 'EXPENSE' && input.categoryId) {
-        const category = await prisma.category.findFirst({
-          where: { 
-            id: input.categoryId,
-            name: { startsWith: 'Tabungan -' },
-          },
+      if (tagIds?.length) {
+        await tx.transactionTag.createMany({
+          data: tagIds.map(tagId => ({
+            transactionId: record.id,
+            tagId,
+          })),
+        });
+      }
+
+      if (input.type === 'INCOME' || input.type === 'EXPENSE') {
+        const adjustment = input.type === 'INCOME' ? input.amount : -input.amount;
+        await tx.account.update({
+          where: { id: input.accountId },
+          data: { balance: { increment: adjustment } },
         });
 
-        if (category) {
-          const goalName = category.name.replace('Tabungan - ', '').trim();
-          
-          const goal = await prisma.goal.findFirst({
-            where: {
-              userId,
-              name: goalName,
-              isLocked: false,
+        if (input.type === 'EXPENSE' && input.categoryId) {
+          const category = await tx.category.findFirst({
+            where: { 
+              id: input.categoryId,
+              name: { startsWith: 'Tabungan -' },
             },
           });
 
-          if (goal) {
-            await prisma.goalContribution.create({
-              data: {
-                goalId: goal.id,
-                amount: input.amount,
-                date: new Date(input.date),
-                note: input.note || `Dari transaksi: ${category.name}`,
-                accountId: input.accountId,
-                sourceTransactionId: transaction.id,
+          if (category) {
+            const goalName = category.name.replace('Tabungan - ', '').trim();
+            
+            const goal = await tx.goal.findFirst({
+              where: {
+                userId,
+                name: goalName,
+                isLocked: false,
               },
             });
 
-            await prisma.goal.update({
-              where: { id: goal.id },
-              data: {
-                currentAmount: { increment: input.amount },
-              },
-            });
+            if (goal) {
+              await tx.goalContribution.create({
+                data: {
+                  goalId: goal.id,
+                  amount: input.amount,
+                  date: new Date(input.date),
+                  note: input.note || `Dari transaksi: ${category.name}`,
+                  accountId: input.accountId,
+                  sourceTransactionId: record.id,
+                },
+              });
+
+              await tx.goal.update({
+                where: { id: goal.id },
+                data: {
+                  currentAmount: { increment: input.amount },
+                },
+              });
+            }
           }
         }
       }
-    }
 
-    if (input.type === 'TRANSFER' && input.fromAccountId && input.toAccountId) {
-      await prisma.account.update({
-        where: { id: input.fromAccountId },
-        data: { balance: { decrement: input.amount } },
-      });
-      await prisma.account.update({
-        where: { id: input.toAccountId },
-        data: { balance: { increment: input.amount } },
-      });
+      if (input.type === 'TRANSFER' && input.fromAccountId && input.toAccountId) {
+        const totalDeduct = Number(input.amount) + adminFee;
+        await tx.account.update({
+          where: { id: input.fromAccountId },
+          data: { balance: { decrement: totalDeduct } },
+        });
+        await tx.account.update({
+          where: { id: input.toAccountId },
+          data: { balance: { increment: input.amount } },
+        });
 
-      await this.handleAutoContribution(input.toAccountId, input.amount, userId, transaction.id, new Date(input.date));
-    }
+        await this.handleAutoContribution(tx, input.toAccountId, input.amount, userId, record.id, new Date(input.date));
+      }
+
+      return record;
+    });
 
     return this.getById(transaction.id, userId);
   }
@@ -375,8 +399,8 @@ export class TransactionService {
     return { income, expense, balance: income - expense };
   }
 
-  private async handleAutoContribution(accountId: string, amount: number, userId: string, sourceTransactionId?: string, txDate?: Date) {
-    const account = await prisma.account.findUnique({
+  private async handleAutoContribution(tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0], accountId: string, amount: number, userId: string, sourceTransactionId?: string, txDate?: Date) {
+    const account = await tx.account.findUnique({
       where: { id: accountId },
       include: { linkedGoal: true },
     });
@@ -387,8 +411,7 @@ export class TransactionService {
 
     if (Number(goal.currentAmount) >= Number(goal.targetAmount)) return;
 
-    // Create contribution
-    const contribution = await prisma.goalContribution.create({
+    const contribution = await tx.goalContribution.create({
       data: {
         goalId: goal.id,
         amount,
@@ -400,9 +423,8 @@ export class TransactionService {
       },
     });
 
-    // Update TRANSFER transaction with categoryId for budget tracking
     if (sourceTransactionId) {
-      const category = await prisma.category.findFirst({
+      const category = await tx.category.findFirst({
         where: {
           userId,
           name: `Tabungan - ${goal.name}`,
@@ -410,21 +432,19 @@ export class TransactionService {
       });
 
       if (category) {
-        await prisma.transaction.update({
+        await tx.transaction.update({
           where: { id: sourceTransactionId },
           data: { categoryId: category.id },
         });
       }
     }
 
-    // Update goal currentAmount
-    await prisma.goal.update({
+    await tx.goal.update({
       where: { id: goal.id },
       data: { currentAmount: { increment: amount } },
     });
 
-    // Update budget if exists
-    const budgets = await prisma.budget.findMany({
+    const budgets = await tx.budget.findMany({
       where: {
         userId,
         isActive: true,
@@ -441,7 +461,6 @@ export class TransactionService {
     console.log('DEBUG handleAutoContribution - budgets found:', budgets.length);
     console.log('DEBUG handleAutoContribution - budget names:', budgets.map(b => b.category.name));
 
-    // Filter budget by transaction date
     const effectiveDate = txDate instanceof Date ? txDate : new Date();
     const txMonth = effectiveDate.getMonth();
     const txYear = effectiveDate.getFullYear();
@@ -457,7 +476,7 @@ export class TransactionService {
     console.log('DEBUG handleAutoContribution - matched budget:', goalBudget?.id, 'endDate:', goalBudget?.endDate);
 
     if (goalBudget) {
-      await prisma.budget.update({
+      await tx.budget.update({
         where: { id: goalBudget.id },
         data: { spent: { increment: amount } },
       });
