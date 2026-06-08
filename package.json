@@ -5,8 +5,10 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "prisma generate",
+    "build:vercel": "node scripts/build-vercel.js",
     "postinstall": "prisma generate",
     "start": "node --import tsx src/index.ts",
+    "start:vercel": "node dist/index.js",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
