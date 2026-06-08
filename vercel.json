@@ -1,15 +1,23 @@
 {
   "version": 2,
+  "buildCommand": "echo 'Using api folder'",
+  "outputDirectory": "api",
+  "installCommand": "npm install",
+  "framework": null,
+  "regions": ["sin1"],
   "builds": [
     {
-      "src": "dist/index.js",
-      "use": "@vercel/node"
+      "src": "api/index.js",
+      "use": "@vercel/node@3",
+      "config": {
+        "runtime": "nodejs18.x"
+      }
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/dist/index.js"
+      "dest": "/api/index.js"
     }
   ]
 }
