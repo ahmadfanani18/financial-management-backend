@@ -180,6 +180,33 @@ export default async function handler(req, res) {
           data: { balance: { increment: adjustment } },
         });
 
+        if (body.type === 'INCOME') {
+          const account = await db.account.findUnique({
+            where: { id: body.accountId },
+            include: { linkedGoal: true },
+          });
+          if (account?.linkedGoal && account.isLocked) {
+            const goal = account.linkedGoal;
+            if (parseFloat(goal.currentAmount) < parseFloat(goal.targetAmount)) {
+              await db.goalContribution.create({
+                data: {
+                  goalId: goal.id,
+                  amount: body.amount,
+                  accountId: body.accountId,
+                  type: 'AUTO',
+                  note: `Auto dari pemasukan ke ${account.name}`,
+                  date: new Date(),
+                  sourceTransactionId: record.id,
+                },
+              });
+              await db.goal.update({
+                where: { id: goal.id },
+                data: { currentAmount: { increment: body.amount } },
+              });
+            }
+          }
+        }
+
         if (body.type === 'EXPENSE' && body.categoryId) {
           const category = await db.category.findFirst({
             where: { id: body.categoryId, name: { startsWith: 'Tabungan -' } },
