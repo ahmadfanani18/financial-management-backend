@@ -19,6 +19,7 @@ export const createTransactionSchema = z.object({
     endDate: z.date().optional(),
   }).optional(),
   tagIds: z.array(z.string()).optional(),
+  deductGoals: z.boolean().default(false),
 });
 
 export const updateTransactionSchema = createTransactionSchema.partial();

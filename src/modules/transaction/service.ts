@@ -165,6 +165,7 @@ export class TransactionService {
       recurringPattern: input.recurringPattern,
       userId,
       adminFee,
+      deductGoals: input.deductGoals ?? false,
     };
 
     const transaction = await prisma.$transaction(async (tx) => {
@@ -187,6 +188,27 @@ export class TransactionService {
           where: { id: input.accountId },
           data: { balance: { increment: adjustment } },
         });
+
+        if (input.type === 'EXPENSE' && input.deductGoals) {
+          const account = await tx.account.findUnique({
+            where: { id: input.accountId },
+            include: { linkedGoal: true },
+          });
+
+          if (!account?.linkedGoalId) {
+            throw new Error('Akun ini tidak terhubung dengan Goals manapun');
+          }
+
+          const goal = account.linkedGoal;
+          if (Number(goal.currentAmount) < input.amount) {
+            throw new Error('Jumlah Goals tidak mencukupi untuk transaksi ini');
+          }
+
+          await tx.goal.update({
+            where: { id: goal.id },
+            data: { currentAmount: { decrement: input.amount } },
+          });
+        }
 
         if (input.type === 'EXPENSE' && input.categoryId) {
           const category = await tx.category.findFirst({
@@ -271,12 +293,27 @@ export class TransactionService {
     sanitizedData.adminFee = newAdminFee;
 
     await prisma.$transaction(async (tx) => {
+      const existingDeductGoals = existing.deductGoals;
+
       if (existing.type === 'INCOME' || existing.type === 'EXPENSE') {
         const reverse = existing.type === 'INCOME' ? -Number(existing.amount) : Number(existing.amount);
         await tx.account.update({
           where: { id: existing.accountId },
           data: { balance: { increment: reverse } },
         });
+
+        if (existing.type === 'EXPENSE' && existingDeductGoals) {
+          const account = await tx.account.findUnique({
+            where: { id: existing.accountId },
+            include: { linkedGoal: true },
+          });
+          if (account?.linkedGoalId) {
+            await tx.goal.update({
+              where: { id: account.linkedGoalId },
+              data: { currentAmount: { increment: existing.amount } },
+            });
+          }
+        }
       }
 
       if (existing.type === 'TRANSFER' && existing.fromAccountId && existing.toAccountId) {
@@ -310,6 +347,28 @@ export class TransactionService {
           where: { id: newAccountId },
           data: { balance: { increment: adjustment } },
         });
+
+        const newDeductGoals = input.deductGoals ?? existing.deductGoals;
+        if (newType === 'EXPENSE' && newDeductGoals) {
+          const account = await tx.account.findUnique({
+            where: { id: newAccountId },
+            include: { linkedGoal: true },
+          });
+
+          if (!account?.linkedGoalId) {
+            throw new Error('Akun ini tidak terhubung dengan Goals manapun');
+          }
+
+          const goal = account.linkedGoal;
+          if (Number(goal.currentAmount) < newAmount) {
+            throw new Error('Jumlah Goals tidak mencukupi untuk transaksi ini');
+          }
+
+          await tx.goal.update({
+            where: { id: goal.id },
+            data: { currentAmount: { decrement: newAmount } },
+          });
+        }
 
         if (newType === 'EXPENSE' && sanitizedData.categoryId) {
           const category = await tx.category.findFirst({
@@ -394,6 +453,19 @@ export class TransactionService {
           where: { id: transaction.accountId },
           data: { balance: { increment: adjustment } },
         });
+
+        if (transaction.type === 'EXPENSE' && transaction.deductGoals) {
+          const account = await tx.account.findUnique({
+            where: { id: transaction.accountId },
+            include: { linkedGoal: true },
+          });
+          if (account?.linkedGoalId) {
+            await tx.goal.update({
+              where: { id: account.linkedGoalId },
+              data: { currentAmount: { increment: transaction.amount } },
+            });
+          }
+        }
       }
 
       if (transaction.type === 'TRANSFER' && transaction.fromAccountId && transaction.toAccountId) {

@@ -182,9 +182,11 @@ export class GoalService {
       }
     }
     
+    const { createBudget, monthlyAmount, linkedAccountId, ...goalData } = input;
+    
     return prisma.goal.update({
       where: { id },
-      data: input,
+      data: goalData,
     });
   }
 
