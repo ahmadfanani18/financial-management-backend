@@ -172,7 +172,7 @@ export default async function handler(req, res) {
       const body = parseBody(req.body);
       const { tier } = body || {};
 
-      const updateData: any = { subscriptionTier: tier };
+      const updateData = { subscriptionTier: tier };
       if (tier === 'PRO') {
         const now = new Date();
         const endDate = new Date(now);
