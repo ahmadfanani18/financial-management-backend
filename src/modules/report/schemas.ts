@@ -9,6 +9,7 @@ export const reportQuerySchema = z.object({
 export const monthlyReportSchema = z.object({
   year: z.coerce.number().int(),
   month: z.coerce.number().int().min(1).max(12),
+  accountId: z.string().uuid().optional(),
 });
 
 export const trendsSchema = z.object({

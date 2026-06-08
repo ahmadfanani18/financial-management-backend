@@ -3,15 +3,25 @@ import type { ReportQuery, MonthlyReportInput, TrendsInput, MutationsQuery } fro
 import Papa from 'papaparse';
 
 export class ReportService {
-  async getMonthlyReport(userId: string, year: number, month: number) {
+  async getMonthlyReport(userId: string, year: number, month: number, accountId?: string) {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
+    const where: any = {
+      userId,
+      date: { gte: startDate, lte: endDate },
+    };
+
+    if (accountId) {
+      where.OR = [
+        { accountId },
+        { fromAccountId: accountId },
+        { toAccountId: accountId },
+      ];
+    }
+
     const transactions = await prisma.transaction.findMany({
-      where: {
-        userId,
-        date: { gte: startDate, lte: endDate },
-      },
+      where,
       include: { category: true, account: true },
     });
 

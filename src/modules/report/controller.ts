@@ -5,11 +5,11 @@ import { reportQuerySchema, monthlyReportSchema, trendsSchema, mutationsQuerySch
 import * as XLSX from 'xlsx';
 
 export async function getMonthlyReportHandler(
-  request: FastifyRequest<{ Querystring: { year: string; month: string } }>,
+  request: FastifyRequest<{ Querystring: { year: string; month: string; accountId?: string } }>,
   reply: FastifyReply
 ) {
-  const { year, month } = monthlyReportSchema.parse(request.query);
-  const report = await reportService.getMonthlyReport(request.user.id, Number(year), Number(month));
+  const { year, month, accountId } = monthlyReportSchema.parse(request.query);
+  const report = await reportService.getMonthlyReport(request.user.id, Number(year), Number(month), accountId);
   return reply.send({ report });
 }
 

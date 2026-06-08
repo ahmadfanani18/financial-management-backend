@@ -22,6 +22,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
         properties: {
           year: { type: 'number' },
           month: { type: 'number', minimum: 1, maximum: 12 },
+          accountId: { type: 'string', format: 'uuid' },
         },
       },
     },
