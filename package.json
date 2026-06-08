@@ -13,7 +13,16 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
-    "test": "vitest"
+    "test": "vitest",
+    "vc:build": "node scripts/build-vercel.js"
+  },
+  "vercel": {
+    "builds": [
+      {
+        "src": "dist/index.js",
+        "use": "@vercel/node"
+      }
+    ]
   },
   "dependencies": {
     "@fastify/cors": "^9.0.1",
