@@ -159,32 +159,6 @@ export class ReportService {
     });
     if (!account) throw new Error('Akun tidak ditemukan');
 
-    const startDateObj = new Date(params.startDate);
-    const dayBeforeStart = new Date(startDateObj);
-    dayBeforeStart.setDate(dayBeforeStart.getDate() - 1);
-    dayBeforeStart.setHours(23, 59, 59, 999);
-
-    const prevTransactions = await prisma.transaction.findMany({
-      where: {
-        OR: [
-          { accountId: params.accountId },
-          { fromAccountId: params.accountId },
-          { toAccountId: params.accountId },
-        ],
-        userId,
-        date: { lte: dayBeforeStart },
-      },
-    });
-
-    let startingBalance = Number(account.balance);
-    for (const t of prevTransactions) {
-      if (t.type === 'INCOME' || (t.type === 'TRANSFER' && t.toAccountId === params.accountId)) {
-        startingBalance -= Number(t.amount);
-      } else if (t.type === 'EXPENSE' || (t.type === 'TRANSFER' && t.fromAccountId === params.accountId)) {
-        startingBalance += Number(t.amount);
-      }
-    }
-
     const where: any = {
       OR: [
         { accountId: params.accountId },
@@ -212,27 +186,42 @@ export class ReportService {
       prisma.transaction.count({ where }),
     ]);
 
-    let runningBalance = startingBalance;
     let totalIncome = 0;
     let totalExpense = 0;
     let transferIn = 0;
     let transferOut = 0;
 
+    for (const t of transactions) {
+      if (t.type === 'INCOME') {
+        totalIncome += Number(t.amount);
+      } else if (t.type === 'EXPENSE') {
+        totalExpense += Number(t.amount);
+      } else if (t.type === 'TRANSFER') {
+        if (t.fromAccountId === params.accountId) {
+          transferOut += Number(t.amount);
+        } else if (t.toAccountId === params.accountId) {
+          transferIn += Number(t.amount);
+        }
+      }
+    }
+
+    const currentBalance = Number(account.balance);
+    const endingBalance = currentBalance + totalIncome - totalExpense - transferOut + transferIn;
+    const startingBalance = endingBalance - totalIncome + totalExpense + transferOut - transferIn;
+
+    let runningBalance = startingBalance;
+
     const transactionsWithBalance = transactions.map(t => {
       let change = 0;
       if (t.type === 'INCOME') {
         change = Number(t.amount);
-        totalIncome += change;
       } else if (t.type === 'EXPENSE') {
         change = -Number(t.amount);
-        totalExpense += Math.abs(change);
       } else if (t.type === 'TRANSFER') {
         if (t.fromAccountId === params.accountId) {
           change = -Number(t.amount);
-          transferOut += Number(t.amount);
         } else if (t.toAccountId === params.accountId) {
           change = Number(t.amount);
-          transferIn += Number(t.amount);
         }
       }
       runningBalance += change;
