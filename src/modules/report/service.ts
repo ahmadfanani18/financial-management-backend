@@ -206,8 +206,8 @@ export class ReportService {
     }
 
     const currentBalance = Number(account.balance);
-    const endingBalance = currentBalance + totalIncome - totalExpense - transferOut + transferIn;
-    const startingBalance = endingBalance - totalIncome + totalExpense + transferOut - transferIn;
+    const startingBalance = 0;
+    const endingBalance = currentBalance;
 
     let runningBalance = startingBalance;
 
