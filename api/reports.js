@@ -213,27 +213,7 @@ export default async function handler(req, res) {
         return;
       }
 
-      const startDateObj = new Date(startDate);
-      const dayBeforeStart = new Date(startDateObj);
-      dayBeforeStart.setDate(dayBeforeStart.getDate() - 1);
-      dayBeforeStart.setHours(23, 59, 59, 999);
-
-      const prevTransactions = await db.transaction.findMany({
-        where: {
-          OR: [{ accountId }, { fromAccountId: accountId }, { toAccountId: accountId }],
-          userId: token.userId,
-          date: { lte: dayBeforeStart },
-        },
-      });
-
-      let startingBalance = parseFloat(account.balance);
-      for (const t of prevTransactions) {
-        if (t.type === 'INCOME' || (t.type === 'TRANSFER' && t.toAccountId === accountId)) {
-          startingBalance -= parseFloat(t.amount);
-        } else if (t.type === 'EXPENSE' || (t.type === 'TRANSFER' && t.fromAccountId === accountId)) {
-          startingBalance += parseFloat(t.amount);
-        }
-      }
+      let startingBalance = 0;
 
       const where = {
         OR: [{ accountId }, { fromAccountId: accountId }, { toAccountId: accountId }],
