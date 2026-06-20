@@ -228,7 +228,7 @@ export default async function handler(req, res) {
           skip: (page - 1) * limit,
           take: limit,
           orderBy: { date: 'asc' },
-          include: { category: true, toAccount: true },
+          select: { id: true, date: true, description: true, type: true, amount: true, adminFee: true, fromAccountId: true, toAccountId: true, category: { select: { name: true } }, toAccount: { select: { name: true } } },
         }),
         db.transaction.count({ where }),
       ]);
@@ -249,7 +249,10 @@ export default async function handler(req, res) {
           totalExpense += Math.abs(change);
         } else if (t.type === 'TRANSFER') {
           if (t.fromAccountId === accountId) {
-            change = -parseFloat(t.amount);
+            change = -(
+              parseFloat(t.amount) +
+              (t.adminFee ? parseFloat(t.adminFee) : 0)
+            );
             transferOut += parseFloat(t.amount);
           } else if (t.toAccountId === accountId) {
             change = parseFloat(t.amount);
@@ -264,6 +267,7 @@ export default async function handler(req, res) {
           description: t.description,
           type: t.type,
           amount: parseFloat(t.amount),
+          adminFee: t.adminFee ? parseFloat(t.adminFee) : undefined,
           category: t.category ? { name: t.category.name } : null,
           toAccount: t.type === 'TRANSFER' && t.toAccountId !== accountId ? { name: t.toAccount?.name || '' } : null,
           runningBalance,

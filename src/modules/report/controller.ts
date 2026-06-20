@@ -75,12 +75,13 @@ export async function exportMutationsHandler(
     ['Periode', `${new Date(query.startDate).toLocaleDateString('id-ID')} - ${new Date(query.endDate).toLocaleDateString('id-ID')}`],
   ];
 
-  const headerRow = ['Tanggal', 'Deskripsi', 'Tipe', 'Jumlah', 'Kategori', 'Tujuan', 'Saldo'];
+  const headerRow = ['Tanggal', 'Deskripsi', 'Tipe', 'Jumlah', 'Biaya Admin', 'Kategori', 'Tujuan', 'Saldo'];
   const dataRows = result.transactions.map(t => [
     new Date(t.date).toLocaleDateString('id-ID'),
     t.description || '-',
     t.type,
     t.type === 'INCOME' ? `+${formatCurrency(t.amount)}` : `-${formatCurrency(t.amount)}`,
+    t.adminFee ? formatCurrency(t.adminFee) : '-',
     t.category?.name || '-',
     t.toAccount?.name || '-',
     formatCurrency(t.runningBalance),
@@ -107,7 +108,7 @@ export async function exportMutationsHandler(
   const ws = XLSX.utils.aoa_to_sheet(wsData);
 
   const colWidths = [
-    { wch: 12 }, { wch: 30 }, { wch: 10 }, { wch: 18 }, { wch: 15 }, { wch: 15 }, { wch: 18 },
+    { wch: 12 }, { wch: 30 }, { wch: 10 }, { wch: 18 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 18 },
   ];
   ws['!cols'] = colWidths;
 
