@@ -181,6 +181,7 @@ export class ReportService {
         include: {
           category: true,
           toAccount: true,
+          adminFee: true,
         },
       }),
       prisma.transaction.count({ where }),
@@ -219,7 +220,7 @@ export class ReportService {
         change = -Number(t.amount);
       } else if (t.type === 'TRANSFER') {
         if (t.fromAccountId === params.accountId) {
-          change = -Number(t.amount);
+          change = -(Number(t.amount) + Number(t.adminFee || 0));
         } else if (t.toAccountId === params.accountId) {
           change = Number(t.amount);
         }
@@ -232,6 +233,7 @@ export class ReportService {
         description: t.description,
         type: t.type,
         amount: Number(t.amount),
+        adminFee: t.adminFee ? Number(t.adminFee) : undefined,
         category: t.category ? { name: t.category.name } : null,
         toAccount: t.type === 'TRANSFER' && t.toAccountId !== params.accountId
           ? { name: t.toAccount?.name || '' }
