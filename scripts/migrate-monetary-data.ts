@@ -19,11 +19,13 @@ async function migrate() {
   for (const { model, fields } of MODELS_WITH_MONEY) {
     console.log(`\nProcessing ${model}...`)
 
+    const whereClause: any = {
+      OR: fields.map(field => ({ [field]: { not: null } })),
+    }
+
     const records = await (prisma as any)[model].findMany({
-      where: {
-        [fields[0]]: { not: null },
-      },
-      select: { id: true, [fields[0]]: true },
+      where: whereClause,
+      select: { id: true, ...fields.reduce((acc, f) => ({ ...acc, [f]: true }), {}) },
     })
 
     console.log(`  Found ${records.length} records`)
