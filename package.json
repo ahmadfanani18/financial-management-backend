@@ -13,6 +13,7 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
+    "migrate:encrypt": "tsx scripts/migrate-monetary-data.ts",
     "test": "vitest",
     "vc:build": "node scripts/build-vercel.js"
   },
