@@ -10,16 +10,30 @@ interface BudgetAllocation {
 
 interface SpendingPrediction {
   category: string;
+  expenseType: 'recurring' | 'occasional';
   predictedAmount: number;
   currentAverage: number;
   budgetLimit?: number;
   isOverBudget?: boolean;
-  trend: 'increasing' | 'decreasing' | 'stable';
+  trend: 'increasing' | 'decreasing' | 'stable' | null;
   confidence: 'high' | 'medium' | 'low';
   dataPoints: number;
-  calculationMethod?: 'single_transaction' | 'weighted_average' | 'trend_projection' | 'no_spending';
+  calculationMethod: 'single_transaction' | 'weighted_average' | 'trend_projection' | 'no_spending';
   noSpendingRecorded?: boolean;
   trendChange?: number;
+  monthsWithTransactions: number;
+}
+
+interface PredictSpendingResponse {
+  predictions: SpendingPrediction[];
+  totalPredicted: number;
+  occasionalTotal?: number;
+  totalBudget: number;
+  totalSpent: number;
+  period: string;
+  message: string;
+  insufficientData: boolean;
+  insufficientDataMonths?: boolean;
 }
 
 interface SavingSuggestion {
@@ -57,6 +71,36 @@ function calculateConfidenceScore(transactionCount: number, timeSpanMonths: numb
   if (score > 15) return 'high';
   if (score >= 5) return 'medium';
   return 'low';
+}
+
+function getUniqueMonths(transactions: { date: Date }[]): number {
+  const uniqueMonths = new Set<string>();
+  transactions.forEach(t => {
+    const d = new Date(t.date);
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    uniqueMonths.add(`${d.getFullYear()}-${month}`);
+  });
+  return uniqueMonths.size;
+}
+
+function classifyExpenseFrequency(
+  transactions: { date: Date }[],
+  lookbackMonths: number
+): 'recurring' | 'occasional' {
+  if (transactions.length === 0) {
+    return 'occasional';
+  }
+
+  const monthsWithTransactions = getUniqueMonths(transactions);
+
+  if (monthsWithTransactions < 3) {
+    return 'recurring';
+  }
+
+  const actualTimeSpan = Math.max(monthsWithTransactions, lookbackMonths);
+  const frequencyRatio = monthsWithTransactions / actualTimeSpan;
+
+  return frequencyRatio >= 0.5 ? 'recurring' : 'occasional';
 }
 
 function categorizeByDataPoints(
@@ -307,7 +351,7 @@ private generateDynamicMilestones(monthlyIncome: number, estimatedExpense: numbe
       return milestones;
     }
 
-async predictSpending(userId: string, input: PredictSpendingInput) {
+async predictSpending(userId: string, input: PredictSpendingInput): Promise<PredictSpendingResponse> {
     const { months } = input;
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - months);
@@ -374,6 +418,8 @@ async predictSpending(userId: string, input: PredictSpendingInput) {
       const timeSpanMonths = calculateTimeSpanMonths(catTransactions);
       const confidenceScore = calculateConfidenceScore(amounts.length, timeSpanMonths, months);
       const result = categorizeByDataPoints(amounts, catTransactions);
+      const expenseType = classifyExpenseFrequency(catTransactions, months);
+      const monthsWithTransactions = getUniqueMonths(catTransactions);
 
       const avg = amounts.reduce((a, b) => a + b, 0) / amounts.length;
       const budgetLimit = budgetMap[category];
@@ -381,41 +427,62 @@ async predictSpending(userId: string, input: PredictSpendingInput) {
 
       return {
         category,
-        predictedAmount: result.predictedAmount,
+        predictedAmount: expenseType === 'occasional' ? 0 : result.predictedAmount,
         currentAverage: Math.round(avg),
         budgetLimit: budgetLimit || undefined,
         isOverBudget,
-        trend: result.trend,
+        trend: expenseType === 'occasional' ? null : result.trend,
         confidence: confidenceScore,
         dataPoints: result.dataPoints,
         calculationMethod: result.calculationMethod,
         noSpendingRecorded: result.calculationMethod === 'no_spending',
         trendChange: result.trendChange,
+        expenseType,
+        monthsWithTransactions,
       };
     });
 
-    const totalPredicted = predictions.reduce((sum, p) => sum + p.predictedAmount, 0);
+    const totalPredicted = predictions
+      .filter(p => p.expenseType === 'recurring')
+      .reduce((sum, p) => sum + p.predictedAmount, 0);
+
+    const occasionalTotal = predictions
+      .filter(p => p.expenseType === 'occasional')
+      .reduce((sum, p) => sum + p.currentAverage, 0);
+
     const totalBudget = budgets.reduce((sum, b) => sum + Number(b.amount), 0);
     const totalSpent = transactions.reduce((sum, t) => sum + Number(t.amount), 0);
+    const actualTimeSpan = calculateTimeSpanMonths(transactions);
 
-    // Generate contextual message
-    let message = `Berdasarkan compilation data spending pattern kamu selama ${months} bulan terakhir, prediksi pengeluaran bulan depan adalah ${totalPredicted.toLocaleString('id-ID')}.`;
-    if (totalBudget > 0) {
-      const budgetUsagePercent = Math.round((totalSpent / totalBudget) * 100);
-      message += ` Penggunaan budget bulan ini: ${budgetUsagePercent}%.`;
-    }
-    if (totalBalance > 0) {
-      message += ` Total saldo akun: ${totalBalance.toLocaleString('id-ID')}.`;
+    let message: string;
+    let insufficientDataMonths = false;
+
+    if (transactions.length === 0) {
+      message = 'Data transaksi masih kurang dari 3 bulan. Tambahkan lebih banyak transaksi untuk mendapatkan prediksi yang akurat.';
+    } else if (actualTimeSpan < 3) {
+      message = `Data kamu masih ${actualTimeSpan} bulan. Prediksi akan lebih akurat setelah 3 bulan penggunaan.`;
+      insufficientDataMonths = true;
+    } else {
+      message = `Prediksi bulan depan ${totalPredicted.toLocaleString('id-ID')} (hanya recurring). Expense jarang-jarang: ${(occasionalTotal || 0).toLocaleString('id-ID')}.`;
+      if (totalBudget > 0) {
+        const budgetUsagePercent = Math.round((totalSpent / totalBudget) * 100);
+        message += ` Penggunaan budget bulan ini: ${budgetUsagePercent}%.`;
+      }
+      if (totalBalance > 0) {
+        message += ` Total saldo akun: ${totalBalance.toLocaleString('id-ID')}.`;
+      }
     }
 
     return {
       predictions: predictions.sort((a, b) => b.predictedAmount - a.predictedAmount),
       totalPredicted,
+      occasionalTotal,
       totalBudget,
       totalSpent,
       period: `Bulan ${new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`,
       message,
-      insufficientData: false,
+      insufficientData: transactions.length === 0,
+      insufficientDataMonths,
 };
   }
 
@@ -931,4 +998,4 @@ export class SmartSaverService {
 
 export const smartSaverService = new SmartSaverService();
 
-export { weightedAverage, calculateTimeSpanMonths, calculateConfidenceScore, categorizeByDataPoints };
+export { weightedAverage, calculateTimeSpanMonths, calculateConfidenceScore, categorizeByDataPoints, getUniqueMonths, classifyExpenseFrequency };
