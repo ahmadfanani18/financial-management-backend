@@ -19,8 +19,11 @@ import { notificationRoutes } from './modules/notification/routes.js';
 import { userRoutes } from './modules/user/routes.js';
 import { searchRoutes } from './modules/search/routes.js';
 import { subscriptionRoutes } from './modules/subscription/routes.js';
+import { marketPriceRoutes } from './modules/market-price/routes.js';
+import { investmentRoutes } from './modules/investment/routes.js';
 import { paymentRoutes } from './modules/payment/index.js';
 import { adminRoutes, adminUsersRoutes, adminSubscriptionRoutes } from './modules/admin/index.js';
+import { startMarketSyncJob } from './jobs/market-sync.js';
 
 const fastify = Fastify({
   logger: true,
@@ -86,6 +89,8 @@ await fastify.register(reportRoutes, { prefix: '/api/reports' });
 await fastify.register(notificationRoutes, { prefix: '/api/notifications' });
 await fastify.register(userRoutes, { prefix: '/api/user' });
 await fastify.register(searchRoutes, { prefix: '/api/search' });
+await fastify.register(marketPriceRoutes, { prefix: '/api/market-prices' });
+await fastify.register(investmentRoutes, { prefix: '/api/investments' });
 await fastify.register(subscriptionRoutes, { prefix: '/api/subscription' });
 await fastify.register(paymentRoutes, { prefix: '/api/payment' });
 await fastify.register(adminRoutes, { prefix: '/api/admin' });
@@ -95,6 +100,10 @@ await fastify.register(adminSubscriptionRoutes, { prefix: '/api/admin' });
 fastify.addHook('onClose', async () => {
   await prisma.$disconnect();
 });
+
+if (process.env.NODE_ENV !== 'test') {
+  startMarketSyncJob();
+}
 
 const start = async () => {
   try {

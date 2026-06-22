@@ -125,6 +125,12 @@ enum NotificationType {
   SYSTEM
 }
 
+enum AssetType {
+  CRYPTO
+  US_STOCK
+  IDX_STOCK
+}
+
 model User {
   id                  String           @id @default(uuid())
   email               String           @unique
@@ -154,6 +160,33 @@ model User {
   passwordResetTokens PasswordResetToken[]
   payments            Payment[]
   subscriptions       Subscription[]
+}
+
+model MarketPrice {
+  id        String   @id @default(uuid())
+  symbol    String   @unique
+  name      String
+  type      AssetType
+  price     String
+  currency  String   @default("IDR")
+  updatedAt DateTime @updatedAt
+
+  @@index([symbol])
+}
+
+model Holding {
+  id           String   @id @default(uuid())
+  accountId    String
+  symbol       String
+  shares       String
+  avgBuyPrice  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  account      Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, symbol])
+  @@index([accountId])
 }
 
 model PasswordResetToken {
@@ -191,6 +224,7 @@ model Account {
   toTransfers           Transaction[]        @relation("ToTransfers")
   goalContributions     GoalContribution[]
   linkedGoal            Goal?                @relation("AccountToGoal", fields: [linkedGoalId], references: [id])
+  holdings              Holding[]
 }
 
 model Category {
