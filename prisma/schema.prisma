@@ -174,7 +174,7 @@ model Account {
   userId      String
   name        String
   type        AccountType
-  balance     Decimal     @default(0) @db.Decimal(15, 2)
+  balance     String      @default("0")
   currency    String      @default("IDR")
   icon        String      @default("wallet")
   color       String      @default("#0EA5E9")
@@ -228,8 +228,8 @@ model Transaction {
   accountId         String
   categoryId        String?
   type              TransactionType
-  amount            Decimal         @db.Decimal(15, 2)
-  adminFee          Decimal         @default(0) @db.Decimal(15, 2)
+  amount            String
+  adminFee          String          @default("0")
   description       String
   date              DateTime
   receiptUrl        String?
@@ -264,8 +264,8 @@ model Budget {
   id                String       @id @default(uuid())
   userId            String
   categoryId        String
-  amount            Decimal      @db.Decimal(15, 2)
-  spent             Decimal      @default(0) @db.Decimal(15, 2)
+  amount            String
+  spent             String       @default("0")
   period            BudgetPeriod @default(MONTHLY)
   startDate         DateTime
   endDate           DateTime?
@@ -283,8 +283,8 @@ model Goal {
   id                String     @id @default(uuid())
   userId            String
   name              String
-  targetAmount      Decimal    @db.Decimal(15, 2)
-  currentAmount     Decimal    @default(0) @db.Decimal(15, 2)
+  targetAmount      String
+  currentAmount     String     @default("0")
   deadline          DateTime
   icon              String     @default("target")
   color             String     @default("#10B981")
@@ -293,7 +293,7 @@ model Goal {
   source            GoalSource @default(MANUAL)
   sourceMilestoneId String?
   linkedAccountId   String?
-  initialBalance    Decimal?  @db.Decimal(15, 2)
+  initialBalance    String?
   isInitialSet      Boolean   @default(false)
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
@@ -314,7 +314,7 @@ enum ContributionType {
 model GoalContribution {
   id          String          @id @default(uuid())
   goalId      String
-  amount      Decimal         @db.Decimal(15, 2)
+  amount      String
   date        DateTime
   note        String?
   accountId   String?
@@ -352,7 +352,7 @@ model PlanMilestone {
   title        String
   description  String?
   targetDate   DateTime
-  targetAmount Decimal?  @db.Decimal(15, 2)
+  targetAmount String?
   goalId       String?
   isCompleted  Boolean   @default(false)
   completedAt  DateTime?
@@ -446,8 +446,8 @@ model Payment {
   id                     String         @id @default(uuid())
   userId                 String
   app                    AppType
-  amount                 Int
-  finalAmount            Int
+  amount                 String
+  finalAmount            String
   paymentMethod          PaymentMethod
   paymentProvider        PaymentProvider?
   paymentType            PaymentType
