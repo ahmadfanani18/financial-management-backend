@@ -491,11 +491,16 @@ async predictSpending(userId: string, input: PredictSpendingInput): Promise<Pred
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
-    // Get transactions for this month
+    // Get expense and income transactions (exclude TRANSFER, from non-locked accounts only)
     const transactions = await prisma.transaction.findMany({
       where: {
         userId,
         date: { gte: startOfMonth, lte: endOfMonth },
+        type: { in: ['EXPENSE', 'INCOME'] },
+        account: {
+          isLocked: false,
+          isArchived: false,
+        },
       },
       include: { category: true },
     });
@@ -527,26 +532,27 @@ async predictSpending(userId: string, input: PredictSpendingInput): Promise<Pred
     // Calculate monthly totals
     const income = transactions.filter(t => t.type === 'INCOME').reduce((sum, t) => sum + Number(t.amount), 0);
     const expenses = transactions.filter(t => t.type === 'EXPENSE').reduce((sum, t) => sum + Number(t.amount), 0);
-    const balance = income - expenses;
+    const currentBalance = totalBalance - expenses;
+    const availableFunds = totalBalance;
 
     const suggestions: SavingSuggestion[] = [];
 
-    // Suggest based on positive balance
-    if (balance > 0) {
-      const remainingToEmergency = Math.max(0, (income * 6) - totalBalance);
-      if (remainingToEmergency > 0 && remainingToEmergency < balance) {
+    // Suggest based on positive available funds
+    if (availableFunds > 0) {
+      const remainingToEmergency = Math.max(0, (availableFunds * 0.5) - totalBalance);
+      if (remainingToEmergency > 0 && remainingToEmergency < availableFunds * 0.5) {
         suggestions.push({
           category: 'Dana Darurat',
           currentSpending: 0,
-          suggestedSaving: Math.min(Math.round(balance * 0.5), remainingToEmergency),
+          suggestedSaving: Math.min(Math.round(availableFunds * 0.25), remainingToEmergency),
           reason: `Tambahkan ke dana darurat. Sisa yang dibutuhkan: ${remainingToEmergency.toLocaleString('id-ID')}`,
         });
       } else {
         suggestions.push({
           category: 'Tabungan Umum',
           currentSpending: 0,
-          suggestedSaving: Math.round(balance * 0.5),
-          reason: 'Anda memiliki sisa saldo positif bulan ini. Simpan setidaknya 50% untuk masa depan.',
+          suggestedSaving: Math.round(availableFunds * 0.25),
+          reason: 'Anda memiliki saldo tersedia. Simpan 25% untuk masa depan.',
         });
       }
     }
@@ -601,18 +607,18 @@ async predictSpending(userId: string, input: PredictSpendingInput): Promise<Pred
       }
     });
 
-    // General suggestions based on income
-    if (income > 0 && balance <= 0) {
+    // General suggestions - spending from savings
+    if (totalBalance > 0 && currentBalance < 0) {
       suggestions.push({
-        category: 'Kurangi Defisit',
+        category: 'Spending dari Tabungan',
         currentSpending: expenses,
-        suggestedSaving: Math.round(income * 0.05),
-        reason: `Pengeluaran melebihi pendapatan. Coba hemat minimal 5% (${Math.round(income * 0.05).toLocaleString('id-ID')}) dari pengeluaran untuk mulai menabung.`,
+        suggestedSaving: Math.round(Math.abs(currentBalance) * 0.1),
+        reason: `Anda spending dari tabungan. Coba hemat 10% dari pengeluaran untuk menjaga saldo.`,
       });
     }
 
     // Account-based suggestion
-    if (totalBalance > income * 3) {
+    if (totalBalance > 10000000) {
       suggestions.push({
         category: 'Investasi',
         currentSpending: 0,
@@ -623,7 +629,7 @@ async predictSpending(userId: string, input: PredictSpendingInput): Promise<Pred
 
     return {
       suggestions: suggestions.slice(0, 5),
-      currentBalance: balance,
+      currentBalance,
       totalAccountBalance: totalBalance,
       activeGoalsCount: goals.length,
       monthlyIncome: income,
