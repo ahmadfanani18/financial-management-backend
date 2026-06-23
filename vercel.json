@@ -1,6 +1,8 @@
 {
   "version": 2,
-  "builder": "@vercel/fastify",
-  "buildCommand": "pnpm build",
-  "installCommand": "pnpm install"
+  "functions": {
+    "src/index.ts": {
+      "runtime": "@vercel/node"
+    }
+  }
 }
