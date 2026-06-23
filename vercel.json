@@ -1,5 +1,7 @@
 {
   "version": 2,
+  "buildCommand": "pnpm build:vercel",
+  "installCommand": "pnpm install",
   "builds": [
     {
       "src": "handler.cjs",

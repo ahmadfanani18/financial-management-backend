@@ -1,0 +1,95 @@
+import { goalService } from './service.js';
+import { createGoalSchema, updateGoalSchema, goalIdSchema, milestoneIdSchema, contributionSchema, contributionWithAccountSchema, createGoalFromMilestoneSchema } from './schemas.js';
+export async function getGoalsHandler(request, reply) {
+    const goals = await goalService.getAllWithProgress(request.user.id);
+    return reply.send({ goals });
+}
+export async function getGoalsOverviewHandler(request, reply) {
+    const overview = await goalService.getOverview(request.user.id);
+    return reply.send(overview);
+}
+export async function getGoalHandler(request, reply) {
+    const { id } = goalIdSchema.parse(request.params);
+    const goal = await goalService.getProgress(id, request.user.id);
+    return reply.send({ goal });
+}
+export async function createGoalHandler(request, reply) {
+    const input = createGoalSchema.parse(request.body);
+    const goal = await goalService.create(request.user.id, input);
+    return reply.status(201).send({ goal });
+}
+export async function updateGoalHandler(request, reply) {
+    const { id } = goalIdSchema.parse(request.params);
+    const input = updateGoalSchema.parse(request.body);
+    const goal = await goalService.update(id, request.user.id, input);
+    return reply.send({ goal });
+}
+export async function deleteGoalHandler(request, reply) {
+    const { id } = goalIdSchema.parse(request.params);
+    await goalService.delete(id, request.user.id);
+    return reply.status(204).send();
+}
+export async function addContributionHandler(request, reply) {
+    const { id } = goalIdSchema.parse(request.params);
+    const input = contributionSchema.parse(request.body);
+    const result = await goalService.addContribution(id, request.user.id, input);
+    return reply.status(201).send(result);
+}
+export async function toggleLockHandler(request, reply) {
+    const { id } = goalIdSchema.parse(request.params);
+    const goal = await goalService.toggleLock(id, request.user.id);
+    return reply.send({ goal });
+}
+export async function deleteGoalWithTransactionHandler(request, reply) {
+    const { id } = goalIdSchema.parse(request.params);
+    const { accountId } = request.body || {};
+    await goalService.deleteWithTransaction(id, request.user.id, accountId);
+    return reply.status(204).send();
+}
+export async function getContributionsHandler(request, reply) {
+    const { id } = goalIdSchema.parse(request.params);
+    const contributions = await goalService.getContributions(id, request.user.id);
+    return reply.send({ contributions });
+}
+export async function addContributionWithAccountHandler(request, reply) {
+    const { id } = goalIdSchema.parse(request.params);
+    const input = contributionWithAccountSchema.parse(request.body);
+    const result = await goalService.addContribution(id, request.user.id, input, input.accountId);
+    return reply.status(201).send(result);
+}
+export async function createGoalFromMilestoneHandler(request, reply) {
+    const { milestoneId } = milestoneIdSchema.parse(request.params);
+    const input = createGoalFromMilestoneSchema.parse(request.body || {});
+    const goal = await goalService.createFromMilestone(milestoneId, request.user.id, input);
+    return reply.status(201).send({ goal });
+}
+export async function deleteGoalWithRefundHandler(request, reply) {
+    const { id } = goalIdSchema.parse(request.params);
+    const { refundAccountId } = request.query;
+    try {
+        const result = await goalService.deleteWithRefund(id, request.user.id, refundAccountId);
+        return reply.send(result);
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        return reply.status(400).send({ error: true, message });
+    }
+}
+export async function deleteContributionHandler(request, reply) {
+    const { id: goalId, contributionId } = request.params;
+    const userId = request.user.id;
+    try {
+        const result = await goalService.deleteContribution(goalId, contributionId, userId);
+        return reply.send(result);
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        if (message.includes('INITIAL')) {
+            return reply.status(400).send({ error: message });
+        }
+        if (message.includes('tidak ditemukan')) {
+            return reply.status(404).send({ error: message });
+        }
+        return reply.status(500).send({ error: 'Gagal menghapus contribution' });
+    }
+}

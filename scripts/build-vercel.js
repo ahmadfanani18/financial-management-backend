@@ -12,7 +12,7 @@ await esbuild.build({
   target: 'node18',
   outfile: 'dist/index.cjs',
   format: 'cjs',
-  external: ['@prisma/client', '.prisma/client', 'node:*', '@fastify/swagger', '@fastify/swagger-ui'],
+  external: ['@prisma/client', '.prisma/client', '@fastify/swagger', '@fastify/swagger-ui'],
   sourcemap: false,
   minify: false,
 });
