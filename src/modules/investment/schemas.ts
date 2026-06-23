@@ -21,5 +21,13 @@ export const holdingIdSchema = z.object({
   id: z.string().min(1, 'ID wajib diisi'),
 });
 
+export const sellHoldingSchema = z.object({
+  quantity: z.number().int().positive('Jumlah lot harus lebih dari 0'),
+  sellPrice: z.number().positive('Harga jual harus lebih dari 0'),
+  sellDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD'),
+  brokerFee: z.number().int().min(0).default(0),
+});
+
 export type CreateHoldingInput = z.infer<typeof createHoldingSchema>;
 export type UpdateHoldingInput = z.infer<typeof updateHoldingSchema>;
+export type SellHoldingInput = z.infer<typeof sellHoldingSchema>;

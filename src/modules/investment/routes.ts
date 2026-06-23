@@ -5,6 +5,7 @@ import {
   createHoldingHandler,
   updateHoldingHandler,
   deleteHoldingHandler,
+  sellHoldingHandler,
 } from './controller.js';
 
 export async function investmentRoutes(fastify: FastifyInstance) {
@@ -60,4 +61,16 @@ export async function investmentRoutes(fastify: FastifyInstance) {
       },
     },
   }, deleteHoldingHandler);
+
+  fastify.post('/holdings/:id/sell', {
+    schema: {
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+        },
+        required: ['id'],
+      },
+    },
+  }, sellHoldingHandler);
 }

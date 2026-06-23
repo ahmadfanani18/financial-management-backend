@@ -324,15 +324,17 @@ export class ReportService {
       include: { account: { select: { id: true, name: true } } },
     });
 
+    const num = (val: any) => Number(val?.toString() ?? 0);
+
     const totalValue = holdings.reduce((sum, h) => {
-      const shares = parseFloat(h.shares);
-      const currentPrice = parseFloat(h.avgBuyPrice);
+      const shares = num(h.quantity);
+      const currentPrice = num(h.avgBuyPrice);
       return sum + (shares * currentPrice);
     }, 0);
 
     const totalInvested = holdings.reduce((sum, h) => {
-      const shares = parseFloat(h.shares);
-      const avgPrice = parseFloat(h.avgBuyPrice);
+      const shares = num(h.quantity);
+      const avgPrice = num(h.avgBuyPrice);
       return sum + (shares * avgPrice);
     }, 0);
 
@@ -348,10 +350,10 @@ export class ReportService {
         id: h.id,
         symbol: h.symbol,
         name: h.symbol,
-        shares: parseFloat(h.shares),
-        avgPrice: parseFloat(h.avgBuyPrice),
-        currentPrice: parseFloat(h.avgBuyPrice),
-        value: Math.round(parseFloat(h.shares) * parseFloat(h.avgBuyPrice)),
+        shares: num(h.quantity),
+        avgPrice: num(h.avgBuyPrice),
+        currentPrice: num(h.avgBuyPrice),
+        value: Math.round(num(h.quantity) * num(h.avgBuyPrice)),
         pnl: 0,
         pnlPercent: 0,
       })),
@@ -375,8 +377,8 @@ export class ReportService {
       });
 
       const value = holdings.reduce((sum, h) => {
-        const shares = parseFloat(h.shares);
-        const price = parseFloat(h.avgBuyPrice);
+        const shares = Number(h.quantity?.toString() ?? 0);
+        const price = Number(h.avgBuyPrice?.toString() ?? 0);
         return sum + (shares * price);
       }, 0);
 
@@ -390,19 +392,21 @@ export class ReportService {
   }
 
   async getInvestmentTransactions(userId: string, params: { accountId?: string; startDate?: Date; endDate?: Date; page: number; limit: number }) {
-    const where: any = { userId };
+    const where: any = {
+      account: { userId },
+    };
 
     if (params.accountId) where.accountId = params.accountId;
     if (params.startDate || params.endDate) {
-      where.date = {};
-      if (params.startDate) where.date.gte = params.startDate;
-      if (params.endDate) where.date.lte = params.endDate;
+      where.transactionDate = {};
+      if (params.startDate) where.transactionDate.gte = params.startDate;
+      if (params.endDate) where.transactionDate.lte = params.endDate;
     }
 
     const [transactions, total] = await Promise.all([
       prisma.investmentTransaction.findMany({
         where,
-        orderBy: { date: 'desc' },
+        orderBy: { transactionDate: 'desc' },
         skip: (params.page - 1) * params.limit,
         take: params.limit,
       }),
@@ -412,12 +416,12 @@ export class ReportService {
     return {
       transactions: transactions.map(t => ({
         id: t.id,
-        date: t.date.toISOString(),
+        date: t.transactionDate.toISOString(),
         type: t.type,
         symbol: t.symbol,
-        shares: t.shares,
-        price: t.price,
-        total: t.total,
+        quantity: t.quantity,
+        pricePerShare: Number(t.pricePerShare),
+        brokerFee: Number(t.brokerFee),
       })),
       pagination: {
         page: params.page,

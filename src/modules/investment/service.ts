@@ -1,6 +1,6 @@
 import { prisma } from '../../config/prisma.js';
 import { marketPriceService } from '../market-price/service.js';
-import type { CreateHoldingInput, UpdateHoldingInput } from './schemas.js';
+import type { CreateHoldingInput, UpdateHoldingInput, SellHoldingInput } from './schemas.js';
 import type { Holding, MarketPrice } from '@prisma/client';
 
 const LOT_SIZE = 100;
@@ -29,7 +29,7 @@ export class InvestmentService {
       const assetType = marketPrice?.type || 'CRYPTO';
       const currentPrice = marketPrice ? Number(marketPrice.price) : 0;
       const avgBuyPrice = Number(holding.avgBuyPrice);
-      const shares = Number(holding.shares);
+const shares = Number(holding.quantity);
       const currentValue = currentPrice * shares;
       const costBasis = avgBuyPrice * shares;
       const pnl = currentValue - costBasis;
@@ -44,7 +44,7 @@ export class InvestmentService {
         symbol: holding.symbol,
         name: marketPrice?.name || holding.symbol,
         type: assetType,
-        shares: holding.shares,
+        shares: holding.quantity,
         sharesDisplay: displayShares,
         avgBuyPrice: holding.avgBuyPrice,
         currentPrice: marketPrice?.price || '0',
@@ -151,7 +151,7 @@ export class InvestmentService {
     const marketPrice = await marketPriceService.getBySymbol(holding.symbol);
     const assetType = marketPrice?.type || 'CRYPTO';
 
-    const currentShares = Number(holding.shares);
+    const currentShares = Number(holding.quantity);
     const currentAvgBuyPrice = Number(holding.avgBuyPrice);
     const currentCostBasis = currentShares * currentAvgBuyPrice;
 
@@ -210,7 +210,7 @@ export class InvestmentService {
 
     const marketPrice = await marketPriceService.getBySymbol(holding.symbol);
     const currentPrice = marketPrice ? Number(marketPrice.price) : 0;
-    const shares = Number(holding.shares);
+    const shares = Number(holding.quantity);
     const proceeds = currentPrice * shares;
 
     await prisma.$transaction([
@@ -220,6 +220,109 @@ export class InvestmentService {
         data: { balance: (currentBalance + proceeds).toString() },
       }),
     ]);
+  }
+
+  async sellHolding(
+    holdingId: string,
+    input: SellHoldingInput
+  ): Promise<{
+    transactionId: string;
+    symbol: string;
+    quantity: number;
+    sellPrice: number;
+    sellDate: string;
+    brokerFee: number;
+    grossProceeds: number;
+    netProceeds: number;
+    realizedPnL: number;
+    remainingQuantity: number;
+    accountBalance: number;
+  }> {
+    const holding = await prisma.holding.findUnique({
+      where: { id: holdingId },
+      include: { account: true },
+    });
+
+    if (!holding) {
+      throw new Error('Posisi tidak ditemukan');
+    }
+
+    if (holding.account.type !== 'INVESTMENT') {
+      throw new Error('Akun ini bukan akun investasi');
+    }
+
+    const sharesOwned = Number(holding.quantity);
+    const sharesToSell = input.quantity * 100;
+    const sharesRemaining = sharesOwned - sharesToSell;
+
+    if (sharesToSell > sharesOwned) {
+      throw new Error('Jumlah lot melebihi posisi yang dimiliki');
+    }
+
+    if (sharesRemaining < 0) {
+      throw new Error('Jumlah lot melebihi posisi yang dimiliki');
+    }
+
+    const grossProceeds = sharesToSell * input.sellPrice;
+    const netProceeds = grossProceeds - input.brokerFee;
+    const costBasis = sharesToSell * Number(holding.avgBuyPrice);
+    const realizedPnL = netProceeds - costBasis;
+
+    const result = await prisma.$transaction(async (tx) => {
+      const transaction = await tx.investmentTransaction.create({
+        data: {
+          holdingId: holding.id,
+          accountId: holding.accountId,
+          type: 'SELL',
+          symbol: holding.symbol,
+          quantity: sharesToSell,
+          pricePerShare: input.sellPrice,
+          brokerFee: input.brokerFee,
+          transactionDate: new Date(input.sellDate),
+        },
+      });
+
+      const currentRealizedPnL = Number(holding.realizedPnL);
+      const newRealizedPnL = currentRealizedPnL + realizedPnL;
+
+      await tx.holding.update({
+        where: { id: holdingId },
+        data: {
+          shares: sharesRemaining.toString(),
+          realizedPnL: newRealizedPnL.toString(),
+        },
+      });
+
+      const currentBalance = Number(holding.account.balance);
+      const newBalance = currentBalance + netProceeds;
+
+      await tx.account.update({
+        where: { id: holding.accountId },
+        data: {
+          balance: newBalance.toString(),
+        },
+      });
+
+      if (sharesRemaining === 0) {
+        await tx.holding.delete({ where: { id: holdingId } });
+      }
+
+      return {
+        transactionId: transaction.id,
+        symbol: holding.symbol,
+        quantity: sharesToSell,
+        sellPrice: input.sellPrice,
+        sellDate: input.sellDate,
+        brokerFee: input.brokerFee,
+        grossProceeds,
+        netProceeds,
+        realizedPnL,
+        remainingQuantity: sharesRemaining,
+        accountBalance: newBalance,
+      };
+    });
+
+    return result;
   }
 }
 

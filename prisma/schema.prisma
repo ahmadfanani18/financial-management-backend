@@ -78,6 +78,8 @@ enum TransactionType {
   INCOME
   EXPENSE
   TRANSFER
+  BUY
+  SELL
 }
 
 enum CategoryType {
@@ -178,31 +180,36 @@ model Holding {
   id           String   @id @default(uuid())
   accountId    String
   symbol       String
-  shares       String
-  avgBuyPrice  String
+  name         String?
+  quantity     Decimal
+  avgBuyPrice  Decimal
+  assetType    AssetType @default(IDX_STOCK)
+  realizedPnL  Decimal  @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   account      Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  investmentTransactions InvestmentTransaction[]
 
   @@unique([accountId, symbol])
   @@index([accountId])
 }
 
 model InvestmentTransaction {
-  id        String   @id @default(cuid())
-  userId    String
-  accountId String
-  holdingId String?
-  type      String
-  symbol    String
-  shares    Float
-  price     Float
-  total     Float
-  date      DateTime
-  createdAt DateTime @default(now())
+  id              String   @id @default(cuid())
+  holdingId       String
+  accountId       String
+  type            TransactionType
+  symbol          String
+  quantity        Int
+  pricePerShare   Decimal
+  brokerFee       Decimal  @default(0)
+  transactionDate DateTime
+  createdAt       DateTime @default(now())
 
-  @@index([userId, date])
+  holding Holding @relation(fields: [holdingId], references: [id])
+  account Account @relation(fields: [accountId], references: [id])
+
   @@index([accountId])
 }
 
@@ -242,6 +249,7 @@ model Account {
   goalContributions     GoalContribution[]
   linkedGoal            Goal?                @relation("AccountToGoal", fields: [linkedGoalId], references: [id])
   holdings              Holding[]
+  investmentTransactions InvestmentTransaction[]
 }
 
 model Category {

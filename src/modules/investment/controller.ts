@@ -5,6 +5,7 @@ import {
   createHoldingSchema,
   updateHoldingSchema,
   holdingIdSchema,
+  sellHoldingSchema,
 } from './schemas.js';
 
 export async function getHoldingsHandler(
@@ -63,6 +64,27 @@ export async function deleteHoldingHandler(
   } catch (error: any) {
     if (error.message.includes('tidak ditemukan')) {
       return reply.status(404).send({ error: error.message });
+    }
+    throw error;
+  }
+}
+
+export async function sellHoldingHandler(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply
+) {
+  const { id } = holdingIdSchema.parse(request.params);
+  const input = sellHoldingSchema.parse(request.body);
+  
+  try {
+    const result = await investmentService.sellHolding(id, input);
+    return reply.send({ success: true, data: result });
+  } catch (error: any) {
+    if (error.message.includes('tidak ditemukan')) {
+      return reply.status(404).send({ error: error.message });
+    }
+    if (error.message.includes('melebihi posisi')) {
+      return reply.status(400).send({ error: error.message });
     }
     throw error;
   }
