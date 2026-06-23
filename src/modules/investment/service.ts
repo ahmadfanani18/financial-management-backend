@@ -5,13 +5,6 @@ import type { Holding, MarketPrice } from '@prisma/client';
 
 const LOT_SIZE = 100;
 
-function getSharesInLembar(shares: number, assetType: string): number {
-  if (assetType === 'IDX_STOCK') {
-    return shares * LOT_SIZE;
-  }
-  return shares;
-}
-
 export class InvestmentService {
   async getHoldings(accountId: string, userId: string) {
     const account = await prisma.account.findFirst({
@@ -107,8 +100,7 @@ export class InvestmentService {
 
     const marketPrice = await marketPriceService.getBySymbol(input.symbol);
     const assetType = marketPrice?.type || 'CRYPTO';
-    const inputShares = Number(input.shares);
-    const sharesInLembar = getSharesInLembar(inputShares, assetType);
+    const sharesInLembar = Number(input.shares);
 
     const balance = Number(account.balance);
     if (isNaN(balance)) {
@@ -165,7 +157,7 @@ export class InvestmentService {
 
     const newSharesInput = input.shares ? Number(input.shares) : null;
     const newSharesInLembar = newSharesInput !== null
-      ? getSharesInLembar(newSharesInput, assetType)
+      ? newSharesInput
       : currentShares;
     const newAvgBuyPrice = input.avgBuyPrice ? Number(input.avgBuyPrice) : currentAvgBuyPrice;
     const newCostBasis = newSharesInLembar * newAvgBuyPrice;
