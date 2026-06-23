@@ -86,7 +86,7 @@ export class ReportService {
     };
   }
 
-  async getTrends(userId: string, months: number = 6) {
+  async getTrends(userId: string, months: number = 6, accountId?: string) {
     const trends = [];
     const now = new Date();
 
@@ -94,11 +94,21 @@ export class ReportService {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
 
+      const where: any = {
+        userId,
+        date: { gte: date, lte: endDate },
+      };
+
+      if (accountId) {
+        where.OR = [
+          { accountId },
+          { fromAccountId: accountId },
+          { toAccountId: accountId },
+        ];
+      }
+
       const transactions = await prisma.transaction.findMany({
-        where: {
-          userId,
-          date: { gte: date, lte: endDate },
-        },
+        where,
       });
 
       const income = transactions.filter(t => t.type === 'INCOME').reduce((sum, t) => sum + Number(t.amount), 0);

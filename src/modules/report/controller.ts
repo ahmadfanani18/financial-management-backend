@@ -26,8 +26,8 @@ export async function getTrendsHandler(
   request: FastifyRequest,
   reply: FastifyReply
 ) {
-  const { months } = trendsSchema.parse(request.query);
-  const trends = await reportService.getTrends(request.user.id, Number(months));
+  const { months, accountId } = trendsSchema.parse(request.query);
+  const trends = await reportService.getTrends(request.user.id, Number(months), accountId);
   return reply.send(trends);
 }
 

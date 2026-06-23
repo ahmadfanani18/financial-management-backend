@@ -14,6 +14,7 @@ export const monthlyReportSchema = z.object({
 
 export const trendsSchema = z.object({
   months: z.coerce.number().int().min(1).max(12).default(6),
+  accountId: z.string().uuid().optional(),
 });
 
 export const mutationsQuerySchema = z.object({
