@@ -5,7 +5,8 @@
       "src": "dist/vercel.js",
       "use": "@vercel/node",
       "config": {
-        "runtime": "nodejs18.x"
+        "runtime": "nodejs18.x",
+        "includeFiles": "dist/**"
       }
     }
   ],
@@ -15,5 +16,6 @@
       "dest": "/dist/vercel.js"
     }
   ],
-  "buildCommand": "pnpm build:vercel"
+  "buildCommand": "pnpm build:vercel",
+  "installCommand": "pnpm install"
 }
