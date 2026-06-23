@@ -2,20 +2,17 @@
   "version": 2,
   "builds": [
     {
-      "src": "dist/vercel.js",
+      "src": "api/index.js",
       "use": "@vercel/node",
       "config": {
-        "runtime": "nodejs18.x",
-        "includeFiles": "dist/**"
+        "runtime": "nodejs18.x"
       }
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/dist/vercel.js"
+      "dest": "/api/index.js"
     }
-  ],
-  "buildCommand": "pnpm build:vercel",
-  "installCommand": "pnpm install"
+  ]
 }
