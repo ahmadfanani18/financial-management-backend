@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "npx tsx -e \"import('./src/index.ts').then(m => m.getApp());\"",
     "build": "prisma generate",
     "build:vercel": "node scripts/build-vercel.js",
     "postinstall": "prisma generate",
@@ -52,6 +52,7 @@
     "@types/papaparse": "^5.5.2",
     "@vercel/fastify": "^0.1.97",
     "esbuild": "^0.28.0",
+    "nodemon": "^3.1.0",
     "prisma": "^5.22.0",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
