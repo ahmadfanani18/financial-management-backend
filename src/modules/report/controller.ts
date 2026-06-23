@@ -188,3 +188,48 @@ export async function exportTransactionsHandler(
   );
   return reply.send(csv);
 }
+
+export async function getInvestmentSummaryHandler(request: FastifyRequest<{ Querystring: { accountId?: string } }>, reply: FastifyReply) {
+  const userId = request.user.id;
+  const { accountId } = request.query;
+
+  if (accountId) {
+    const account = await prisma.account.findFirst({ where: { id: accountId, userId } });
+    if (!account) return reply.status(404).send({ error: 'Akun tidak ditemukan' });
+  }
+
+  const result = await reportService.getInvestmentSummary(userId, accountId);
+  return reply.send(result);
+}
+
+export async function getInvestmentPerformanceHandler(request: FastifyRequest<{ Querystring: { months?: number; accountId?: string } }>, reply: FastifyReply) {
+  const userId = request.user.id;
+  const { months = 6, accountId } = request.query;
+
+  if (accountId) {
+    const account = await prisma.account.findFirst({ where: { id: accountId, userId } });
+    if (!account) return reply.status(404).send({ error: 'Akun tidak ditemukan' });
+  }
+
+  const result = await reportService.getInvestmentPerformance(userId, months, accountId);
+  return reply.send(result);
+}
+
+export async function getInvestmentTransactionsHandler(request: FastifyRequest<{ Querystring: { accountId?: string; startDate?: string; endDate?: string; page?: number; limit?: number } }>, reply: FastifyReply) {
+  const userId = request.user.id;
+  const { accountId, startDate, endDate, page = 1, limit = 50 } = request.query;
+
+  if (accountId) {
+    const account = await prisma.account.findFirst({ where: { id: accountId, userId } });
+    if (!account) return reply.status(404).send({ error: 'Akun tidak ditemukan' });
+  }
+
+  const result = await reportService.getInvestmentTransactions(userId, {
+    accountId,
+    startDate: startDate ? new Date(startDate) : undefined,
+    endDate: endDate ? new Date(endDate) : undefined,
+    page: Number(page),
+    limit: Number(limit),
+  });
+  return reply.send(result);
+}

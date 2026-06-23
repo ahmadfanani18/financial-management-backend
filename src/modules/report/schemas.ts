@@ -39,3 +39,24 @@ export type ReportQuery = z.infer<typeof reportQuerySchema>;
 export type MonthlyReportInput = z.infer<typeof monthlyReportSchema>;
 export type TrendsInput = z.infer<typeof trendsSchema>;
 export type MutationsQuery = z.infer<typeof mutationsQuerySchema>;
+
+export const investmentSummarySchema = z.object({
+  accountId: z.string().uuid().optional(),
+});
+
+export const investmentPerformanceSchema = z.object({
+  months: z.coerce.number().int().min(1).max(12).default(6),
+  accountId: z.string().uuid().optional(),
+});
+
+export const investmentTransactionsQuerySchema = z.object({
+  accountId: z.string().uuid().optional(),
+  startDate: z.coerce.date().optional(),
+  endDate: z.coerce.date().optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(50),
+});
+
+export type InvestmentSummaryInput = z.infer<typeof investmentSummarySchema>;
+export type InvestmentPerformanceInput = z.infer<typeof investmentPerformanceSchema>;
+export type InvestmentTransactionsQuery = z.infer<typeof investmentTransactionsQuerySchema>;

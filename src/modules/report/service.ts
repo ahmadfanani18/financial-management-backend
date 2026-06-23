@@ -315,6 +315,119 @@ export class ReportService {
     return Object.values(grouped).sort((a, b) => b.amount - a.amount);
   }
 
+  async getInvestmentSummary(userId: string, accountId?: string) {
+    const holdings = await prisma.holding.findMany({
+      where: {
+        account: { userId, type: 'INVESTMENT', isArchived: false },
+        ...(accountId ? { accountId } : {}),
+      },
+      include: { account: { select: { id: true, name: true } } },
+    });
+
+    const totalValue = holdings.reduce((sum, h) => {
+      const shares = parseFloat(h.shares);
+      const currentPrice = parseFloat(h.avgBuyPrice);
+      return sum + (shares * currentPrice);
+    }, 0);
+
+    const totalInvested = holdings.reduce((sum, h) => {
+      const shares = parseFloat(h.shares);
+      const avgPrice = parseFloat(h.avgBuyPrice);
+      return sum + (shares * avgPrice);
+    }, 0);
+
+    const totalPnL = totalValue - totalInvested;
+    const totalPnLPercent = totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0;
+
+    return {
+      totalValue: Math.round(totalValue),
+      totalPnL: Math.round(totalPnL),
+      totalPnLPercent: Math.round(totalPnLPercent * 100) / 100,
+      holdingsCount: holdings.length,
+      holdings: holdings.map(h => ({
+        id: h.id,
+        symbol: h.symbol,
+        name: h.symbol,
+        shares: parseFloat(h.shares),
+        avgPrice: parseFloat(h.avgBuyPrice),
+        currentPrice: parseFloat(h.avgBuyPrice),
+        value: Math.round(parseFloat(h.shares) * parseFloat(h.avgBuyPrice)),
+        pnl: 0,
+        pnlPercent: 0,
+      })),
+    };
+  }
+
+  async getInvestmentPerformance(userId: string, months: number = 6, accountId?: string) {
+    const performance = [];
+    const now = new Date();
+
+    for (let i = months - 1; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+
+      const holdings = await prisma.holding.findMany({
+        where: {
+          account: { userId, type: 'INVESTMENT' },
+          ...(accountId ? { accountId } : {}),
+          createdAt: { lte: endDate },
+        },
+      });
+
+      const value = holdings.reduce((sum, h) => {
+        const shares = parseFloat(h.shares);
+        const price = parseFloat(h.avgBuyPrice);
+        return sum + (shares * price);
+      }, 0);
+
+      performance.push({
+        month: date.toLocaleDateString('id-ID', { month: 'short' }),
+        value: Math.round(value),
+      });
+    }
+
+    return { performance };
+  }
+
+  async getInvestmentTransactions(userId: string, params: { accountId?: string; startDate?: Date; endDate?: Date; page: number; limit: number }) {
+    const where: any = { userId };
+
+    if (params.accountId) where.accountId = params.accountId;
+    if (params.startDate || params.endDate) {
+      where.date = {};
+      if (params.startDate) where.date.gte = params.startDate;
+      if (params.endDate) where.date.lte = params.endDate;
+    }
+
+    const [transactions, total] = await Promise.all([
+      prisma.investmentTransaction.findMany({
+        where,
+        orderBy: { date: 'desc' },
+        skip: (params.page - 1) * params.limit,
+        take: params.limit,
+      }),
+      prisma.investmentTransaction.count({ where }),
+    ]);
+
+    return {
+      transactions: transactions.map(t => ({
+        id: t.id,
+        date: t.date.toISOString(),
+        type: t.type,
+        symbol: t.symbol,
+        shares: t.shares,
+        price: t.price,
+        total: t.total,
+      })),
+      pagination: {
+        page: params.page,
+        limit: params.limit,
+        total,
+        totalPages: Math.ceil(total / params.limit),
+      },
+    };
+  }
+
   async exportTransactions(userId: string, year: number, month: number): Promise<string> {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59);

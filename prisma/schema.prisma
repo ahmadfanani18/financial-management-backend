@@ -189,6 +189,23 @@ model Holding {
   @@index([accountId])
 }
 
+model InvestmentTransaction {
+  id        String   @id @default(cuid())
+  userId    String
+  accountId String
+  holdingId String?
+  type      String
+  symbol    String
+  shares    Float
+  price     Float
+  total     Float
+  date      DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId, date])
+  @@index([accountId])
+}
+
 model PasswordResetToken {
   id        String   @id @default(uuid())
   userId    String
