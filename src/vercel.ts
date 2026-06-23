@@ -66,7 +66,6 @@ await fastify.register(searchRoutes, { prefix: '/api/search' });
 await fastify.register(subscriptionRoutes, { prefix: '/api/subscription' });
 await fastify.register(marketPriceRoutes, { prefix: '/api/market-prices' });
 await fastify.register(investmentRoutes, { prefix: '/api/investments' });
-await fastify.register(subscriptionRoutes, { prefix: '/api/subscription' });
 await fastify.register(paymentRoutes, { prefix: '/api/payment' });
 await fastify.register(adminRoutes, { prefix: '/api/admin' });
 await fastify.register(adminUsersRoutes, { prefix: '/api/admin' });
