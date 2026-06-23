@@ -101,7 +101,7 @@ fastify.addHook('onClose', async () => {
   await prisma.$disconnect();
 });
 
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   startMarketSyncJob();
 }
 
