@@ -12,6 +12,8 @@ export const config = {
     'http://localhost:3000',
     'http://localhost:3001',
     frontendUrl,
+    'https://financial-management-frontend.vercel.app',
+    'https://financial-management-frontend-*.vercel.app',
   ],
   midtrans: {
     merchantId: process.env.MIDTRANS_MERCHANT_ID || 'G723694640',
