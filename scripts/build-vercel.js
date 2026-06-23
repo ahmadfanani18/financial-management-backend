@@ -1,6 +1,8 @@
 import * as esbuild from 'esbuild';
 import { execSync } from 'child_process';
 
+process.env.VERCEL = '1';
+
 execSync('./node_modules/.bin/prisma generate', { stdio: 'inherit' });
 
 await esbuild.build({
@@ -8,9 +10,9 @@ await esbuild.build({
   bundle: true,
   platform: 'node',
   target: 'node18',
-  outfile: 'dist/index.js',
+  outfile: 'dist/index.cjs',
   format: 'cjs',
-  external: ['@prisma/client', '.prisma/client', 'node:*'],
+  external: ['@prisma/client', '.prisma/client', 'node:*', '@fastify/swagger', '@fastify/swagger-ui'],
   sourcemap: false,
   minify: false,
 });
