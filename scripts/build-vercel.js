@@ -20,4 +20,16 @@ await esbuild.build({
   minify: false,
 });
 
+await esbuild.build({
+  entryPoints: ['src/vercel.ts'],
+  bundle: true,
+  platform: 'node',
+  target: 'node18',
+  outfile: 'dist/vercel.js',
+  format: 'esm',
+  external: ['@prisma/client', '.prisma/client'],
+  sourcemap: false,
+  minify: false,
+});
+
 console.log('Build complete!');
