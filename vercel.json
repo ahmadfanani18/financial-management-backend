@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "api-dist/vercel-handler.js",
+      "src": "vercel.js",
       "use": "@vercel/node",
       "config": {
         "runtime": "nodejs18.x"
@@ -12,7 +12,8 @@
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/api-dist/vercel-handler.js"
+      "dest": "/vercel.js"
     }
-  ]
+  ],
+  "buildCommand": "pnpm build:vercel"
 }
