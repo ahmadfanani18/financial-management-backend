@@ -595,11 +595,6 @@ export class TransactionService {
       include: { category: true },
     });
 
-    console.log('DEBUG handleAutoContribution - userId:', userId);
-    console.log('DEBUG handleAutoContribution - goal.name:', goal.name);
-    console.log('DEBUG handleAutoContribution - budgets found:', budgets.length);
-    console.log('DEBUG handleAutoContribution - budget names:', budgets.map(b => b.category.name));
-
     const effectiveDate = txDate instanceof Date ? txDate : new Date();
     const txMonth = effectiveDate.getMonth();
     const txYear = effectiveDate.getFullYear();
@@ -610,9 +605,6 @@ export class TransactionService {
         && endDate.getMonth() === txMonth
         && endDate.getFullYear() === txYear;
     });
-
-    console.log('DEBUG handleAutoContribution - txDate:', effectiveDate.toISOString());
-    console.log('DEBUG handleAutoContribution - matched budget:', goalBudget?.id, 'endDate:', goalBudget?.endDate);
 
     if (goalBudget) {
       await tx.budget.update({
