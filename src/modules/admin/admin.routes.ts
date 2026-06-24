@@ -60,7 +60,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
       const pricing = await adminPricing.createPricing({ app, amount, period });
       return reply.send(pricing);
     } catch (error) {
-      return reply.status(500).send({ error: 'Failed to create pricing' });
+      const message = error instanceof Error ? error.message : 'Failed to create pricing';
+      return reply.status(400).send({ error: message });
     }
   });
 

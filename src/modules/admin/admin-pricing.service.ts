@@ -10,10 +10,19 @@ export const adminPricing = {
   },
 
   async createPricing(data: { app: string; amount: number; period?: string }) {
+    const period = data.period || 'MONTHLY';
+    const existing = await prisma.pricing.findUnique({
+      where: { app_period: { app: data.app as any, period } },
+    });
+
+    if (existing && existing.isActive) {
+      throw new Error(`${period} pricing for ${data.app} already exists. Please update the existing one instead.`);
+    }
+
     return prisma.pricing.upsert({
-      where: { app_period: { app: data.app as any, period: data.period || 'MONTHLY' } },
+      where: { app_period: { app: data.app as any, period } },
       update: { amount: data.amount, isActive: true },
-      create: { app: data.app as any, amount: data.amount, period: data.period || 'MONTHLY' },
+      create: { app: data.app as any, amount: data.amount, period },
     });
   },
 
