@@ -21,6 +21,7 @@ import { marketPriceRoutes } from './modules/market-price/routes.js';
 import { investmentRoutes } from './modules/investment/routes.js';
 import { paymentRoutes } from './modules/payment/index.js';
 import { adminRoutes, adminUsersRoutes, adminSubscriptionRoutes } from './modules/admin/index.js';
+import { adminReportRoutes } from './modules/admin-report/routes.js';
 import { startMarketSyncJob } from './jobs/market-sync.js';
 
 async function buildApp() {
@@ -100,6 +101,7 @@ async function buildApp() {
   await fastify.register(adminRoutes, { prefix: '/api/admin' });
   await fastify.register(adminUsersRoutes, { prefix: '/api/admin' });
   await fastify.register(adminSubscriptionRoutes, { prefix: '/api/admin' });
+  await fastify.register(adminReportRoutes, { prefix: '/api/admin/reports' });
 
   fastify.addHook('onClose', async () => {
     await prisma.$disconnect();
