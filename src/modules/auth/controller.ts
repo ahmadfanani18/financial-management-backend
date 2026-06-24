@@ -97,3 +97,21 @@ export async function resetPasswordHandler(
   const result = await authService.resetPassword(token, password);
   return reply.send(result);
 }
+
+export async function verifyEmailHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const { token } = request.body as { token: string };
+  const result = await authService.verifyEmail(token);
+  return reply.send(result);
+}
+
+export async function resendVerificationHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const { email } = request.body as { email: string };
+  const result = await authService.resendVerification(email);
+  return reply.send(result);
+}
