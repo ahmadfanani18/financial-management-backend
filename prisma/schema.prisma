@@ -167,6 +167,7 @@ model User {
   payments            Payment[]
   subscriptions       Subscription[]
   conversations       Conversation[]
+  feedback            Feedback[]
 }
 
 model MarketPrice {
@@ -473,6 +474,37 @@ model Notification {
   createdAt DateTime         @default(now())
 
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum FeedbackType {
+  BUG
+  SUGGESTION
+}
+
+enum FeedbackStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
+model Feedback {
+  id          String          @id @default(uuid())
+  userId      String
+  type        FeedbackType
+  subject     String
+  description String
+  screenshot  String?
+  status      FeedbackStatus  @default(OPEN)
+  adminNote   String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
 }
 
 model Pricing {

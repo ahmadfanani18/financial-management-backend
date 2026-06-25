@@ -22,6 +22,7 @@ import { investmentRoutes } from './modules/investment/routes.js';
 import { paymentRoutes } from './modules/payment/index.js';
 import { adminRoutes, adminUsersRoutes, adminSubscriptionRoutes } from './modules/admin/index.js';
 import { adminReportRoutes } from './modules/admin-report/routes.js';
+import { feedbackRoutes } from './modules/feedback/routes.js';
 import { startMarketSyncJob } from './jobs/market-sync.js';
 
 async function buildApp() {
@@ -93,6 +94,7 @@ async function buildApp() {
   await fastify.register(reportRoutes, { prefix: '/api/reports' });
   await fastify.register(notificationRoutes, { prefix: '/api/notifications' });
   await fastify.register(userRoutes, { prefix: '/api/user' });
+  await fastify.register(feedbackRoutes, { prefix: '/api' });
   await fastify.register(searchRoutes, { prefix: '/api/search' });
   await fastify.register(marketPriceRoutes, { prefix: '/api/market-prices' });
   await fastify.register(investmentRoutes, { prefix: '/api/investments' });
