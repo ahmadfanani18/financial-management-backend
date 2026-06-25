@@ -7,6 +7,9 @@ import {
   generatePlanFromDataHandler,
   smartSaverCalculateHandler,
   smartSaverSuggestionsHandler,
+  chatHandler,
+  quotaHandler,
+  clearHistoryHandler,
 } from './controller.js';
 
 export async function aiRoutes(fastify: FastifyInstance) {
@@ -55,4 +58,31 @@ export async function aiRoutes(fastify: FastifyInstance) {
   }, smartSaverCalculateHandler);
 
   fastify.get('/smart-saver/suggestions', smartSaverSuggestionsHandler);
+
+  fastify.post('/chat', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['message'],
+        properties: {
+          message: { type: 'string', minLength: 1 },
+          conversationId: { type: 'string' },
+        },
+      },
+    },
+  }, chatHandler);
+
+  fastify.get('/quota', quotaHandler);
+
+  fastify.post('/clear-history', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['conversationId'],
+        properties: {
+          conversationId: { type: 'string' },
+        },
+      },
+    },
+  }, clearHistoryHandler);
 }

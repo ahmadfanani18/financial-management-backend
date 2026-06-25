@@ -147,6 +147,8 @@ model User {
   subscriptionEndAt   DateTime?
   lastReminderSentAt DateTime?
   preferences         Json             @default("{}")
+  aiQuotaUsed         Int              @default(0) // Int is sufficient: max ~1000 req/day * 31 days = 31,000, well under 2^31-1
+  aiQuotaResetAt      DateTime?
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
   emailVerifiedAt      DateTime?
@@ -164,6 +166,7 @@ model User {
   passwordResetTokens PasswordResetToken[]
   payments            Payment[]
   subscriptions       Subscription[]
+  conversations       Conversation[]
 }
 
 model MarketPrice {
@@ -547,4 +550,28 @@ model Subscription {
   user    User   @relation(fields: [userId], references: [id])
 
   @@index([userId])
+}
+
+model Conversation {
+  id        String    @id @default(uuid())
+  userId    String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@index([userId])
+}
+
+model Message {
+  id             String      @id @default(uuid())
+  conversationId String
+  role           String
+  content        String
+  createdAt      DateTime    @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
 }
