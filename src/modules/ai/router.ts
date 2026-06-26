@@ -46,9 +46,9 @@ export function classifyQuery(message: string): QueryComplexity {
 }
 
 const FALLBACK_CHAINS: Record<QueryComplexity, string[]> = {
-  simple: ['mock'],
-  analysis: ['mock'],
-  complex: ['mock'],
+  simple: ['gemini', 'openai', 'claude'],
+  analysis: ['claude', 'openai', 'gemini'],
+  complex: ['claude', 'openai', 'gemini'],
 };
 
 const DEFAULT_MODELS: Record<string, string> = {
@@ -79,6 +79,8 @@ export function createRouter(config: RouterConfig): Router {
   const providers: Record<string, AIProvider | undefined> = {
     mock: mockProvider,
     openai: config.openai ? createOpenAIProvider(config.openai) : createOpenAIProvider(),
+    claude: config.claude ? createClaudeProvider(config.claude) : createClaudeProvider(),
+    gemini: config.gemini ? createGeminiProvider(config.gemini) : createGeminiProvider(),
   };
 
   return {

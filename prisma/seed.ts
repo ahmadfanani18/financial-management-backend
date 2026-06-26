@@ -23,6 +23,7 @@ async function main() {
       password: hashedPassword,
       avatar: null,
       role: 'MEMBER',
+      emailVerifiedAt: now,
     },
   });
 
@@ -43,6 +44,7 @@ async function main() {
         name: 'Admin Finova',
         password: hashedPassword,
         role: 'ADMIN',
+        emailVerifiedAt: now,
       },
     });
     console.log('Created admin user: admin@finova.app');

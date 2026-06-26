@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { prisma } from '../../config/prisma.js';
+import { prisma } from '../config/prisma.js';
 
-vi.mock('../../config/prisma.js', () => ({
+vi.mock('../config/prisma.js', () => ({
   prisma: {
     goal: {
       findMany: vi.fn(),
@@ -37,10 +37,11 @@ vi.mock('../../config/prisma.js', () => ({
     budget: {
       createMany: vi.fn(),
     },
+    $transaction: vi.fn(),
   },
 }));
 
-import { goalService } from '../service.js';
+import { goalService } from '../modules/goal/service';
 
 describe('Goal Contribution Delete', () => {
   beforeEach(() => {
@@ -59,6 +60,7 @@ describe('Goal Contribution Delete', () => {
         deadline: new Date(),
         isLocked: false,
         initialBalance: 0,
+        contributions: [],
       };
 
       vi.mocked(prisma.goal.findFirst).mockResolvedValue(mockGoal);
@@ -78,6 +80,7 @@ describe('Goal Contribution Delete', () => {
         deadline: new Date(),
         isLocked: false,
         initialBalance: 0,
+        contributions: [],
       };
       const mockContrib = {
         id: 'c1',
@@ -113,6 +116,7 @@ describe('Goal Contribution Delete', () => {
         deadline: new Date(),
         isLocked: false,
         initialBalance: 0,
+        contributions: [],
       };
       const mockContrib = {
         id: 'c1',
@@ -152,6 +156,7 @@ describe('Goal Contribution Delete', () => {
         deadline: new Date(),
         isLocked: false,
         initialBalance: 0,
+        contributions: [],
       };
       const mockContrib = {
         id: 'c1',
@@ -190,6 +195,7 @@ describe('Goal Contribution Delete', () => {
         deadline: new Date(),
         isLocked: false,
         initialBalance: 0,
+        contributions: [],
       };
       const mockContrib = {
         id: 'c1',

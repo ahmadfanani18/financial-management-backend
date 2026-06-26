@@ -45,7 +45,7 @@ describe('InvestmentService.sellHolding', () => {
     prisma.holding.findUnique.mockResolvedValue({
       id: 'holding-123',
       symbol: 'BBCA',
-      shares: '10000',
+      quantity: '10000',
       avgBuyPrice: '5000',
       realizedPnL: '0',
       account: { id: 'acc-1', type: 'INVESTMENT', balance: '1000000' },
@@ -65,7 +65,7 @@ describe('InvestmentService.sellHolding', () => {
     const holding = {
       id: 'holding-123',
       symbol: 'BBCA',
-      shares: '20000',
+      quantity: '20000',
       avgBuyPrice: '5000',
       realizedPnL: '0',
       account: { id: 'acc-1', type: 'INVESTMENT', balance: '1000000' },
@@ -101,7 +101,7 @@ describe('InvestmentService.sellHolding', () => {
     const holding = {
       id: 'holding-123',
       symbol: 'BBCA',
-      shares: '10000',
+      quantity: '10000',
       avgBuyPrice: '5000',
       realizedPnL: '0',
       account: { id: 'acc-1', type: 'INVESTMENT', balance: '1000000' },

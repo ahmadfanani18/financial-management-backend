@@ -17,10 +17,8 @@ export const encryptionMiddleware: Prisma.Middleware = async (params, next) => {
 
   if (fields && isWriteAction(params.action)) {
     if (params.action === 'upsert') {
-      params.args.data = {
-        update: encryptFields(params.args.update, fields),
-        create: encryptFields(params.args.create, fields),
-      }
+      params.args.update = encryptFields(params.args.update, fields)
+      params.args.create = encryptFields(params.args.create, fields)
     } else {
       params.args.data = encryptFields(params.args.data, fields)
     }
@@ -40,7 +38,7 @@ function isWriteAction(action: string): boolean {
 }
 
 function isReadAction(action: string): boolean {
-  return ['findUnique', 'findFirst', 'findMany'].includes(action)
+  return ['findUnique', 'findFirst', 'findMany', 'create'].includes(action)
 }
 
 function encryptFields(data: unknown, fields: string[]): unknown {
