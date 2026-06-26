@@ -14,6 +14,7 @@ export const config = {
     frontendUrl,
     'https://financial-management-frontend.vercel.app',
     'https://financial-management-frontend-*.vercel.app',
+    'https://finova.doitfun.web.id',
   ],
   midtrans: {
     merchantId: process.env.MIDTRANS_MERCHANT_ID || 'G723694640',
