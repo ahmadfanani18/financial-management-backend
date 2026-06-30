@@ -24,7 +24,7 @@ import { adminRoutes, adminUsersRoutes, adminSubscriptionRoutes } from './module
 import { feedbackRoutes } from './modules/feedback/routes.js';
 
 const fastify = Fastify({
-  logger: false,
+  logger: true,
 });
 
 await fastify.register(cors, {
