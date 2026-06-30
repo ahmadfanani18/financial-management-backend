@@ -137,3 +137,13 @@ async function getApp() {
 
 export { getApp };
 
+let app = null;
+const handler = async (req: any, res: any) => {
+  if (!app) {
+    app = await getApp();
+  }
+  await app.ready();
+  app.server.emit('request', req, res);
+};
+export default handler;
+

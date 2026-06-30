@@ -253,8 +253,8 @@ var require_queue = __commonJS({
         }
         self2.drain = noop3;
       }
-      function error(handler) {
-        errorHandler = handler;
+      function error(handler2) {
+        errorHandler = handler2;
       }
     }
     function noop3() {
@@ -1416,8 +1416,8 @@ var require_boot = __commonJS({
       }
     }
     module2.exports = Boot;
-    module2.exports.express = function(app) {
-      return Boot(app, {
+    module2.exports.express = function(app2) {
+      return Boot(app2, {
         expose: {
           use: "load"
         }
@@ -3112,33 +3112,33 @@ var require_handleRequest = __commonJS({
       const headers = request.headers;
       const context = request[kRouteContext];
       if (method === "GET" || method === "HEAD") {
-        handler(request, reply);
+        handler2(request, reply);
         return;
       }
       const contentType = headers["content-type"];
       if (method === "POST" || method === "PUT" || method === "PATCH" || method === "TRACE" || method === "SEARCH" || method === "PROPFIND" || method === "PROPPATCH" || method === "LOCK" || method === "COPY" || method === "MOVE" || method === "MKCOL" || method === "REPORT" || method === "MKCALENDAR") {
         if (contentType === void 0) {
           if (headers["transfer-encoding"] === void 0 && (headers["content-length"] === "0" || headers["content-length"] === void 0)) {
-            handler(request, reply);
+            handler2(request, reply);
           } else {
-            context.contentTypeParser.run("", handler, request, reply);
+            context.contentTypeParser.run("", handler2, request, reply);
           }
         } else {
-          context.contentTypeParser.run(contentType, handler, request, reply);
+          context.contentTypeParser.run(contentType, handler2, request, reply);
         }
         return;
       }
       if (method === "OPTIONS" || method === "DELETE") {
         if (contentType !== void 0 && (headers["transfer-encoding"] !== void 0 || headers["content-length"] !== void 0)) {
-          context.contentTypeParser.run(contentType, handler, request, reply);
+          context.contentTypeParser.run(contentType, handler2, request, reply);
         } else {
-          handler(request, reply);
+          handler2(request, reply);
         }
         return;
       }
-      handler(request, reply);
+      handler2(request, reply);
     }
-    function handler(request, reply) {
+    function handler2(request, reply) {
       try {
         if (request[kRouteContext].preValidation !== null) {
           preValidationHookRunner(
@@ -3213,7 +3213,7 @@ var require_handleRequest = __commonJS({
       }
     }
     module2.exports = handleRequest;
-    module2.exports[/* @__PURE__ */ Symbol.for("internals")] = { handler, preHandlerCallback };
+    module2.exports[/* @__PURE__ */ Symbol.for("internals")] = { handler: handler2, preHandlerCallback };
   }
 });
 
@@ -7684,11 +7684,11 @@ var require_rfdc = __commonJS({
       constructorHandlers.set(Map, (o, fn) => new Map(cloneArray(Array.from(o), fn)));
       constructorHandlers.set(Set, (o, fn) => new Set(cloneArray(Array.from(o), fn)));
       if (opts.constructorHandlers) {
-        for (const handler2 of opts.constructorHandlers) {
-          constructorHandlers.set(handler2[0], handler2[1]);
+        for (const handler3 of opts.constructorHandlers) {
+          constructorHandlers.set(handler3[0], handler3[1]);
         }
       }
-      let handler = null;
+      let handler2 = null;
       return opts.proto ? cloneProto : clone;
       function cloneArray(a, fn) {
         const keys = Object.keys(a);
@@ -7698,8 +7698,8 @@ var require_rfdc = __commonJS({
           const cur = a[k];
           if (typeof cur !== "object" || cur === null) {
             a2[k] = cur;
-          } else if (cur.constructor !== Object && (handler = constructorHandlers.get(cur.constructor))) {
-            a2[k] = handler(cur, fn);
+          } else if (cur.constructor !== Object && (handler2 = constructorHandlers.get(cur.constructor))) {
+            a2[k] = handler2(cur, fn);
           } else if (ArrayBuffer.isView(cur)) {
             a2[k] = copyBuffer(cur);
           } else {
@@ -7711,8 +7711,8 @@ var require_rfdc = __commonJS({
       function clone(o) {
         if (typeof o !== "object" || o === null) return o;
         if (Array.isArray(o)) return cloneArray(o, clone);
-        if (o.constructor !== Object && (handler = constructorHandlers.get(o.constructor))) {
-          return handler(o, clone);
+        if (o.constructor !== Object && (handler2 = constructorHandlers.get(o.constructor))) {
+          return handler2(o, clone);
         }
         const o2 = {};
         for (const k in o) {
@@ -7720,8 +7720,8 @@ var require_rfdc = __commonJS({
           const cur = o[k];
           if (typeof cur !== "object" || cur === null) {
             o2[k] = cur;
-          } else if (cur.constructor !== Object && (handler = constructorHandlers.get(cur.constructor))) {
-            o2[k] = handler(cur, clone);
+          } else if (cur.constructor !== Object && (handler2 = constructorHandlers.get(cur.constructor))) {
+            o2[k] = handler2(cur, clone);
           } else if (ArrayBuffer.isView(cur)) {
             o2[k] = copyBuffer(cur);
           } else {
@@ -7733,16 +7733,16 @@ var require_rfdc = __commonJS({
       function cloneProto(o) {
         if (typeof o !== "object" || o === null) return o;
         if (Array.isArray(o)) return cloneArray(o, cloneProto);
-        if (o.constructor !== Object && (handler = constructorHandlers.get(o.constructor))) {
-          return handler(o, cloneProto);
+        if (o.constructor !== Object && (handler2 = constructorHandlers.get(o.constructor))) {
+          return handler2(o, cloneProto);
         }
         const o2 = {};
         for (const k in o) {
           const cur = o[k];
           if (typeof cur !== "object" || cur === null) {
             o2[k] = cur;
-          } else if (cur.constructor !== Object && (handler = constructorHandlers.get(cur.constructor))) {
-            o2[k] = handler(cur, cloneProto);
+          } else if (cur.constructor !== Object && (handler2 = constructorHandlers.get(cur.constructor))) {
+            o2[k] = handler2(cur, cloneProto);
           } else if (ArrayBuffer.isView(cur)) {
             o2[k] = copyBuffer(cur);
           } else {
@@ -7760,11 +7760,11 @@ var require_rfdc = __commonJS({
       constructorHandlers.set(Map, (o, fn) => new Map(cloneArray(Array.from(o), fn)));
       constructorHandlers.set(Set, (o, fn) => new Set(cloneArray(Array.from(o), fn)));
       if (opts.constructorHandlers) {
-        for (const handler2 of opts.constructorHandlers) {
-          constructorHandlers.set(handler2[0], handler2[1]);
+        for (const handler3 of opts.constructorHandlers) {
+          constructorHandlers.set(handler3[0], handler3[1]);
         }
       }
-      let handler = null;
+      let handler2 = null;
       return opts.proto ? cloneProto : clone;
       function cloneArray(a, fn) {
         const keys = Object.keys(a);
@@ -7774,8 +7774,8 @@ var require_rfdc = __commonJS({
           const cur = a[k];
           if (typeof cur !== "object" || cur === null) {
             a2[k] = cur;
-          } else if (cur.constructor !== Object && (handler = constructorHandlers.get(cur.constructor))) {
-            a2[k] = handler(cur, fn);
+          } else if (cur.constructor !== Object && (handler2 = constructorHandlers.get(cur.constructor))) {
+            a2[k] = handler2(cur, fn);
           } else if (ArrayBuffer.isView(cur)) {
             a2[k] = copyBuffer(cur);
           } else {
@@ -7792,8 +7792,8 @@ var require_rfdc = __commonJS({
       function clone(o) {
         if (typeof o !== "object" || o === null) return o;
         if (Array.isArray(o)) return cloneArray(o, clone);
-        if (o.constructor !== Object && (handler = constructorHandlers.get(o.constructor))) {
-          return handler(o, clone);
+        if (o.constructor !== Object && (handler2 = constructorHandlers.get(o.constructor))) {
+          return handler2(o, clone);
         }
         const o2 = {};
         refs.push(o);
@@ -7803,8 +7803,8 @@ var require_rfdc = __commonJS({
           const cur = o[k];
           if (typeof cur !== "object" || cur === null) {
             o2[k] = cur;
-          } else if (cur.constructor !== Object && (handler = constructorHandlers.get(cur.constructor))) {
-            o2[k] = handler(cur, clone);
+          } else if (cur.constructor !== Object && (handler2 = constructorHandlers.get(cur.constructor))) {
+            o2[k] = handler2(cur, clone);
           } else if (ArrayBuffer.isView(cur)) {
             o2[k] = copyBuffer(cur);
           } else {
@@ -7823,8 +7823,8 @@ var require_rfdc = __commonJS({
       function cloneProto(o) {
         if (typeof o !== "object" || o === null) return o;
         if (Array.isArray(o)) return cloneArray(o, cloneProto);
-        if (o.constructor !== Object && (handler = constructorHandlers.get(o.constructor))) {
-          return handler(o, cloneProto);
+        if (o.constructor !== Object && (handler2 = constructorHandlers.get(o.constructor))) {
+          return handler2(o, cloneProto);
         }
         const o2 = {};
         refs.push(o);
@@ -7833,8 +7833,8 @@ var require_rfdc = __commonJS({
           const cur = o[k];
           if (typeof cur !== "object" || cur === null) {
             o2[k] = cur;
-          } else if (cur.constructor !== Object && (handler = constructorHandlers.get(cur.constructor))) {
-            o2[k] = handler(cur, cloneProto);
+          } else if (cur.constructor !== Object && (handler2 = constructorHandlers.get(cur.constructor))) {
+            o2[k] = handler2(cur, cloneProto);
           } else if (ArrayBuffer.isView(cur)) {
             o2[k] = copyBuffer(cur);
           } else {
@@ -12254,7 +12254,7 @@ var require_context = __commonJS({
     } = require_symbols2();
     function Context({
       schema,
-      handler,
+      handler: handler2,
       config: config2,
       requestIdLogLabel,
       childLoggerFactory,
@@ -12273,7 +12273,7 @@ var require_context = __commonJS({
       isFastify
     }) {
       this.schema = schema;
-      this.handler = handler;
+      this.handler = handler2;
       this.Reply = server[kReply];
       this.Request = server[kRequest];
       this.contentTypeParser = server[kContentTypeParser];
@@ -13497,11 +13497,11 @@ var require_contentTypeParser = __commonJS({
       }
       return removed || idx > -1;
     };
-    ContentTypeParser.prototype.run = function(contentType, handler, request, reply) {
+    ContentTypeParser.prototype.run = function(contentType, handler2, request, reply) {
       const parser = this.getParser(contentType);
       if (parser === void 0) {
         if (request.is404) {
-          handler(request, reply);
+          handler2(request, reply);
         } else {
           reply.send(new FST_ERR_CTP_INVALID_MEDIA_TYPE(contentType || void 0));
         }
@@ -13530,7 +13530,7 @@ var require_contentTypeParser = __commonJS({
             reply.send(error);
           } else {
             request.body = body;
-            handler(request, reply);
+            handler2(request, reply);
           }
         });
       }
@@ -28374,8 +28374,8 @@ var require_handler_storage = __commonJS({
       // The store's implementation comes from the strategies provided to the Router.
       _buildConstraintStore(store2, constraint) {
         for (let i = 0; i < this.handlers.length; i++) {
-          const handler = this.handlers[i];
-          const constraintValue = handler.constraints[constraint];
+          const handler2 = this.handlers[i];
+          const constraintValue = handler2.constraints[constraint];
           if (constraintValue !== void 0) {
             let indexes = store2.get(constraintValue) || 0;
             indexes |= 1 << i;
@@ -28387,8 +28387,8 @@ var require_handler_storage = __commonJS({
       _constrainedIndexBitmask(constraint) {
         let mask = 0;
         for (let i = 0; i < this.handlers.length; i++) {
-          const handler = this.handlers[i];
-          const constraintValue = handler.constraints[constraint];
+          const handler2 = this.handlers[i];
+          const constraintValue = handler2.constraints[constraint];
           if (constraintValue !== void 0) {
             mask |= 1 << i;
           }
@@ -29065,25 +29065,25 @@ var require_find_my_way = __commonJS({
       this.routes = [];
       this.trees = {};
     }
-    Router.prototype.on = function on(method, path7, opts, handler, store2) {
+    Router.prototype.on = function on(method, path7, opts, handler2, store2) {
       if (typeof opts === "function") {
-        if (handler !== void 0) {
-          store2 = handler;
+        if (handler2 !== void 0) {
+          store2 = handler2;
         }
-        handler = opts;
+        handler2 = opts;
         opts = {};
       }
       assert(typeof path7 === "string", "Path should be a string");
       assert(path7.length > 0, "The path could not be empty");
       assert(path7[0] === "/" || path7[0] === "*", "The first character of a path should be `/` or `*`");
-      assert(typeof handler === "function", "Handler should be a function");
+      assert(typeof handler2 === "function", "Handler should be a function");
       const optionalParamMatch = path7.match(OPTIONAL_PARAM_REGEXP);
       if (optionalParamMatch) {
         assert(path7.length === optionalParamMatch.index + optionalParamMatch[0].length, "Optional Parameter needs to be the last parameter of the path");
         const pathFull = path7.replace(OPTIONAL_PARAM_REGEXP, "$1$2");
         const pathOptional = path7.replace(OPTIONAL_PARAM_REGEXP, "$2") || "/";
-        this.on(method, pathFull, opts, handler, store2);
-        this.on(method, pathOptional, opts, handler, store2);
+        this.on(method, pathFull, opts, handler2, store2);
+        this.on(method, pathOptional, opts, handler2, store2);
         return;
       }
       const route = path7;
@@ -29097,10 +29097,10 @@ var require_find_my_way = __commonJS({
       for (const method2 of methods) {
         assert(typeof method2 === "string", "Method should be a string");
         assert(httpMethods.includes(method2), `Method '${method2}' is not an http method.`);
-        this._on(method2, path7, opts, handler, store2, route);
+        this._on(method2, path7, opts, handler2, store2, route);
       }
     };
-    Router.prototype._on = function _on(method, path7, opts, handler, store2) {
+    Router.prototype._on = function _on(method, path7, opts, handler2, store2) {
       let constraints = {};
       if (opts.constraints !== void 0) {
         assert(typeof opts.constraints === "object" && opts.constraints !== null, "Constraints should be an object");
@@ -29216,7 +29216,7 @@ var require_find_my_way = __commonJS({
           throw new Error(`Method '${method}' already declared for route '${pattern}' with constraints '${JSON.stringify(constraints)}'`);
         }
       }
-      const route = { method, path: path7, pattern, params, opts, handler, store: store2 };
+      const route = { method, path: path7, pattern, params, opts, handler: handler2, store: store2 };
       this.routes.push(route);
       currentNode.addRoute(route, this.constrainer);
     };
@@ -29513,8 +29513,8 @@ var require_find_my_way = __commonJS({
     Router.prototype._rebuild = function(routes) {
       this.reset();
       for (const route of routes) {
-        const { method, path: path7, opts, handler, store: store2 } = route;
-        this._on(method, path7, opts, handler, store2);
+        const { method, path: path7, opts, handler: handler2, store: store2 } = route;
+        this._on(method, path7, opts, handler2, store2);
       }
     };
     Router.prototype._defaultRoute = function(req, res, ctx) {
@@ -29563,12 +29563,12 @@ var require_find_my_way = __commonJS({
       if (!httpMethods.hasOwnProperty(i)) continue;
       const m = httpMethods[i];
       const methodName = m.toLowerCase();
-      Router.prototype[methodName] = function(path7, handler, store2) {
-        return this.on(m, path7, handler, store2);
+      Router.prototype[methodName] = function(path7, handler2, store2) {
+        return this.on(m, path7, handler2, store2);
       };
     }
-    Router.prototype.all = function(path7, handler, store2) {
-      this.on(httpMethods, path7, handler, store2);
+    Router.prototype.all = function(path7, handler2, store2) {
+      this.on(httpMethods, path7, handler2, store2);
     };
     module2.exports = Router;
     function escapeRegExp(string) {
@@ -29778,14 +29778,14 @@ var require_route = __commonJS({
       function isAsyncConstraint() {
         return router.constrainer.asyncStrategiesInUse.size > 0;
       }
-      function prepareRoute({ method, url, options: options2, handler, isFastify }) {
+      function prepareRoute({ method, url, options: options2, handler: handler2, isFastify }) {
         if (typeof url !== "string") {
           throw new FST_ERR_INVALID_URL(typeof url);
         }
-        if (!handler && typeof options2 === "function") {
-          handler = options2;
+        if (!handler2 && typeof options2 === "function") {
+          handler2 = options2;
           options2 = {};
-        } else if (handler && typeof handler === "function") {
+        } else if (handler2 && typeof handler2 === "function") {
           if (Object.prototype.toString.call(options2) !== "[object Object]") {
             throw new FST_ERR_ROUTE_OPTIONS_NOT_OBJ(method, url);
           } else if (options2.handler) {
@@ -29800,7 +29800,7 @@ var require_route = __commonJS({
           method,
           url,
           path: url,
-          handler: handler || options2 && options2.handler
+          handler: handler2 || options2 && options2.handler
         });
         return route.call(this, { options: options2, isFastify });
       }
@@ -30219,7 +30219,7 @@ var require_fourOhFour = __commonJS({
         _404Context.onSend = context.onSend;
         context[kFourOhFourContext] = _404Context;
       }
-      function setNotFoundHandler(opts, handler, avvio, routeHandler) {
+      function setNotFoundHandler(opts, handler2, avvio, routeHandler) {
         if (this[kCanSetNotFoundHandler] === void 0) {
           this[kCanSetNotFoundHandler] = true;
         }
@@ -30248,27 +30248,27 @@ var require_fourOhFour = __commonJS({
           }
         }
         if (typeof opts === "function") {
-          handler = opts;
+          handler2 = opts;
           opts = void 0;
         }
         opts = opts || {};
-        if (handler) {
+        if (handler2) {
           this[kFourOhFourLevelInstance][kCanSetNotFoundHandler] = false;
-          handler = handler.bind(this);
-          _onBadUrlHandler = handler;
+          handler2 = handler2.bind(this);
+          _onBadUrlHandler = handler2;
         } else {
-          handler = basic404;
+          handler2 = basic404;
           _onBadUrlHandler = basic404;
         }
         this.after((notHandledErr, done) => {
-          _setNotFoundHandler.call(this, prefix, opts, handler, avvio, routeHandler);
+          _setNotFoundHandler.call(this, prefix, opts, handler2, avvio, routeHandler);
           done(notHandledErr);
         });
       }
-      function _setNotFoundHandler(prefix, opts, handler, avvio, routeHandler) {
+      function _setNotFoundHandler(prefix, opts, handler2, avvio, routeHandler) {
         const context = new Context({
           schema: opts.schema,
-          handler,
+          handler: handler2,
           config: opts.config || {},
           server: this
         });
@@ -33411,29 +33411,29 @@ var require_fastify = __commonJS({
         getDefaultRoute: router.getDefaultRoute.bind(router),
         setDefaultRoute: router.setDefaultRoute.bind(router),
         // routes shorthand methods
-        delete: function _delete(url, options2, handler) {
-          return router.prepareRoute.call(this, { method: "DELETE", url, options: options2, handler });
+        delete: function _delete(url, options2, handler2) {
+          return router.prepareRoute.call(this, { method: "DELETE", url, options: options2, handler: handler2 });
         },
-        get: function _get(url, options2, handler) {
-          return router.prepareRoute.call(this, { method: "GET", url, options: options2, handler });
+        get: function _get(url, options2, handler2) {
+          return router.prepareRoute.call(this, { method: "GET", url, options: options2, handler: handler2 });
         },
-        head: function _head(url, options2, handler) {
-          return router.prepareRoute.call(this, { method: "HEAD", url, options: options2, handler });
+        head: function _head(url, options2, handler2) {
+          return router.prepareRoute.call(this, { method: "HEAD", url, options: options2, handler: handler2 });
         },
-        patch: function _patch(url, options2, handler) {
-          return router.prepareRoute.call(this, { method: "PATCH", url, options: options2, handler });
+        patch: function _patch(url, options2, handler2) {
+          return router.prepareRoute.call(this, { method: "PATCH", url, options: options2, handler: handler2 });
         },
-        post: function _post(url, options2, handler) {
-          return router.prepareRoute.call(this, { method: "POST", url, options: options2, handler });
+        post: function _post(url, options2, handler2) {
+          return router.prepareRoute.call(this, { method: "POST", url, options: options2, handler: handler2 });
         },
-        put: function _put(url, options2, handler) {
-          return router.prepareRoute.call(this, { method: "PUT", url, options: options2, handler });
+        put: function _put(url, options2, handler2) {
+          return router.prepareRoute.call(this, { method: "PUT", url, options: options2, handler: handler2 });
         },
-        options: function _options(url, options2, handler) {
-          return router.prepareRoute.call(this, { method: "OPTIONS", url, options: options2, handler });
+        options: function _options(url, options2, handler2) {
+          return router.prepareRoute.call(this, { method: "OPTIONS", url, options: options2, handler: handler2 });
         },
-        all: function _all(url, options2, handler) {
-          return router.prepareRoute.call(this, { method: supportedMethods, url, options: options2, handler });
+        all: function _all(url, options2, handler2) {
+          return router.prepareRoute.call(this, { method: supportedMethods, url, options: options2, handler: handler2 });
         },
         // extended route
         route: function _route(options2) {
@@ -33855,9 +33855,9 @@ ${body}`);
           }
         };
       }
-      function setNotFoundHandler(opts, handler) {
+      function setNotFoundHandler(opts, handler2) {
         throwIfAlreadyStarted('Cannot call "setNotFoundHandler"!');
-        fourOhFour.setNotFoundHandler.call(this, opts, handler, avvio, router.routeHandler);
+        fourOhFour.setNotFoundHandler.call(this, opts, handler2, avvio, router.routeHandler);
         return this;
       }
       function setValidatorCompiler(validatorCompiler) {
@@ -40206,8 +40206,8 @@ var require_utils3 = __commonJS({
     var algorithmMatcher = /"alg"\s*:\s*"[HERP]S(256|384)"/m;
     var edAlgorithmMatcher = /"alg"\s*:\s*"EdDSA"/m;
     var ed448CurveMatcher = /"crv"\s*:\s*"Ed448"/m;
-    function getAsyncKey(handler, decoded, callback) {
-      const result = handler(decoded, callback);
+    function getAsyncKey(handler2, decoded, callback) {
+      const result = handler2(decoded, callback);
       if (result && typeof result.then === "function") {
         result.then((key) => {
           process.nextTick(() => callback(null, key));
@@ -112424,8 +112424,8 @@ var init_admin_pricing_service = __esm({
       async getPricings() {
         return prisma.pricing.findMany({ orderBy: { app: "asc" } });
       },
-      async getPricingByApp(app) {
-        return prisma.pricing.findMany({ where: { app } });
+      async getPricingByApp(app2) {
+        return prisma.pricing.findMany({ where: { app: app2 } });
       },
       async createPricing(data) {
         const period = data.period || "MONTHLY";
@@ -112480,6 +112480,7 @@ var init_admin_pricing_service = __esm({
 // src/index.ts
 var index_exports = {};
 __export(index_exports, {
+  default: () => index_default,
   getApp: () => getApp
 });
 module.exports = __toCommonJS(index_exports);
@@ -132802,13 +132803,13 @@ async function createPayment2(request, reply) {
     if (!user?.id) {
       return reply.status(401).send({ error: "Unauthorized" });
     }
-    const { app, paymentMethod, paymentProvider, paymentType, couponCode, enableAutoRenewal } = request.body;
-    if (!app || !paymentMethod || !paymentType) {
+    const { app: app2, paymentMethod, paymentProvider, paymentType, couponCode, enableAutoRenewal } = request.body;
+    if (!app2 || !paymentMethod || !paymentType) {
       return reply.status(400).send({ error: "Missing required fields" });
     }
     const result = await createPayment({
       userId: user.id,
-      app,
+      app: app2,
       paymentMethod,
       paymentProvider,
       paymentType,
@@ -132911,8 +132912,8 @@ async function adminRoutes(fastify) {
     preHandler: [authenticate, requireAdmin]
   }, async (request, reply) => {
     try {
-      const { app, amount, period } = request.body;
-      const pricing = await adminPricing.createPricing({ app, amount, period });
+      const { app: app2, amount, period } = request.body;
+      const pricing = await adminPricing.createPricing({ app: app2, amount, period });
       return reply.send(pricing);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to create pricing";
@@ -133797,6 +133798,15 @@ async function getApp() {
   }
   return cachedApp;
 }
+var app = null;
+var handler = async (req, res) => {
+  if (!app) {
+    app = await getApp();
+  }
+  await app.ready();
+  app.server.emit("request", req, res);
+};
+var index_default = handler;
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   getApp
