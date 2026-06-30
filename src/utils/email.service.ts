@@ -6,6 +6,9 @@ const client = new MailtrapClient({
   token: process.env.MAILTRAP_API_TOKEN || 'your-api-token',
 });
 
+console.log('[EMAIL-INIT] MAILTRAP_API_TOKEN exists:', !!process.env.MAILTRAP_API_TOKEN);
+console.log('[EMAIL-INIT] Token prefix:', process.env.MAILTRAP_API_TOKEN?.substring(0, 4) + '...');
+
 function logEmail(type: string, to: string, data: Record<string, unknown>) {
   console.log(`[EMAIL-${type}] Sending to: ${to}`);
   console.log(`[EMAIL-${type}] Data:`, JSON.stringify(data, null, 2));
