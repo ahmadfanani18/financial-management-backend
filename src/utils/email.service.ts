@@ -23,7 +23,7 @@ export async function sendPasswordResetEmail({ to, name, resetUrl }: SendResetEm
   }
 
   const sender = {
-    email: 'no-reply@doitfun.web.id',
+    email: 'no-reply@finova.doitfun.web.id',
     name: 'Finova',
   };
 
@@ -86,7 +86,7 @@ export async function sendRenewalReminderEmail({ to, name, expiryDate, renewalUr
   html = html.replace(/\{\{expiryDate\}\}/g, expiryDate);
   html = html.replace(/\{\{renewalUrl\}\}/g, renewalUrl);
 
-  const sender = { email: 'no-reply@doitfun.web.id', name: 'Finova' };
+  const sender = { email: 'no-reply@finova.doitfun.web.id', name: 'Finova' };
   return client.send({
     from: sender,
     to: [{ email: to }],
@@ -114,7 +114,7 @@ export async function sendVerificationEmail({ to, name, verifyUrl }: SendVerific
   }
 
   const sender = {
-    email: 'no-reply@doitfun.web.id',
+    email: 'no-reply@finova.doitfun.web.id',
     name: 'Finova',
   };
 
