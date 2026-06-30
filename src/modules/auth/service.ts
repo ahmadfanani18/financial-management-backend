@@ -50,13 +50,19 @@ export class AuthService {
     });
 
     const verifyUrl = `${config.frontendUrl}/auth/verify-email?token=${verificationToken}`;
-    await sendVerificationEmail({
-      to: user.email,
-      name: user.name,
-      verifyUrl,
-    });
+    console.log(`[EMAIL-VERIFICATION-URL] ${verifyUrl}`);
     
-    return user;
+    try {
+      await sendVerificationEmail({
+        to: user.email,
+        name: user.name,
+        verifyUrl,
+      });
+    } catch (emailError) {
+      console.error('[EMAIL-VERIFICATION-ERROR]', emailError);
+    }
+    
+    return { ...user, verifyUrl };
   }
 
   async login(input: LoginInput) {
