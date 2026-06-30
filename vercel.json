@@ -1,9 +1,11 @@
 {
   "version": 2,
-  "builds": [
+  "buildCommand": "pnpm build:vercel",
+  "installCommand": "pnpm install",
+  "rewrites": [
     {
-      "src": "dist/handler.js",
-      "use": "@vercel/node"
+      "source": "/(.*)",
+      "destination": "/dist/index.cjs"
     }
   ]
 }

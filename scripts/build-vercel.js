@@ -6,12 +6,12 @@ process.env.VERCEL = '1';
 execSync('./node_modules/.bin/prisma generate', { stdio: 'inherit' });
 
 await esbuild.build({
-  entryPoints: ['src/vercel.ts'],
+  entryPoints: ['src/index.ts'],
   bundle: true,
   platform: 'node',
   target: 'node18',
-  outfile: 'dist/handler.js',
-  format: 'esm',
+  outfile: 'dist/index.cjs',
+  format: 'cjs',
   external: ['@prisma/client', '.prisma/client', '@fastify/swagger', '@fastify/swagger-ui'],
   sourcemap: false,
   minify: false,
