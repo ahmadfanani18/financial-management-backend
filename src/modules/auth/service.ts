@@ -49,7 +49,7 @@ export class AuthService {
       },
     });
 
-    const verifyUrl = `${config.frontendUrl}/auth/verify-email?token=${verificationToken}`;
+    const verifyUrl = `${config.frontendUrl}/verify-email?token=${verificationToken}`;
     console.log(`[EMAIL-VERIFICATION-URL] ${verifyUrl}`);
     
     try {
@@ -119,6 +119,12 @@ export class AuthService {
     const tokenAge = Date.now() - user.updatedAt.getTime();
     const tokenExpiry = 24 * 60 * 60 * 1000;
 
+    console.log('[VERIFY-EMAIL-DEBUG] Date.now():', Date.now());
+    console.log('[VERIFY-EMAIL-DEBUG] user.updatedAt.getTime():', user.updatedAt.getTime());
+    console.log('[VERIFY-EMAIL-DEBUG] tokenAge (ms):', tokenAge);
+    console.log('[VERIFY-EMAIL-DEBUG] tokenExpiry (ms):', tokenExpiry);
+    console.log('[VERIFY-EMAIL-DEBUG] user.createdAt:', user.createdAt);
+
     if (tokenAge > tokenExpiry) {
       throw new Error('Token tidak valid atau sudah kedaluwarsa.');
     }
@@ -155,7 +161,7 @@ export class AuthService {
       data: { emailVerificationToken: hashedToken },
     });
 
-    const verifyUrl = `${config.frontendUrl}/auth/verify-email?token=${newToken}`;
+    const verifyUrl = `${config.frontendUrl}/verify-email?token=${newToken}`;
     await sendVerificationEmail({
       to: user.email,
       name: user.name,
