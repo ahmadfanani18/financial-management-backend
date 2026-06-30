@@ -112512,6 +112512,7 @@ var config = {
     frontendUrl,
     "https://financial-management-frontend.vercel.app",
     "https://financial-management-frontend-*.vercel.app",
+    "https://financial-management-frontend-seven.vercel.app",
     "https://finova.doitfun.web.id"
   ],
   midtrans: {
