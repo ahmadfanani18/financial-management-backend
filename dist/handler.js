@@ -133528,25 +133528,8 @@ fastify.addHook("onClose", async () => {
   await prisma.$disconnect();
 });
 var handler = async (req, res) => {
-  const fastifyReq = {
-    method: req.method || "GET",
-    url: req.url || "/",
-    headers: req.headers,
-    body: req.body,
-    query: req.query
-  };
-  try {
-    const result = await fastify.handle(fastifyReq);
-    res.status(result.statusCode || 200);
-    if (result.body) {
-      res.send(result.body);
-    } else {
-      res.send(result);
-    }
-  } catch (error) {
-    console.error("Fastify error:", error);
-    res.status(500).send({ error: error.message || "Internal server error" });
-  }
+  await fastify.ready();
+  fastify.server.emit("request", req, res);
 };
 var vercel_default = handler;
 export {

@@ -77,27 +77,10 @@ fastify.addHook('onClose', async () => {
   await prisma.$disconnect();
 });
 
-export const handler = async (req: any, res: any) => {
-  const fastifyReq = {
-    method: req.method || 'GET',
-    url: req.url || '/',
-    headers: req.headers,
-    body: req.body,
-    query: req.query,
-  };
-
-  try {
-    const result = await fastify.handle(fastifyReq);
-    res.status(result.statusCode || 200);
-    if (result.body) {
-      res.send(result.body);
-    } else {
-      res.send(result);
-    }
-  } catch (error: any) {
-    console.error('Fastify error:', error);
-    res.status(500).send({ error: error.message || 'Internal server error' });
-  }
+const handler = async (req: any, res: any) => {
+  await fastify.ready();
+  fastify.server.emit('request', req, res);
 };
 
 export default handler;
+export { handler };
