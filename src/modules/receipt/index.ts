@@ -1,1 +1,1 @@
-export { default as receiptRoutes } from './routes';
+export { routes as receiptRoutes } from './routes';
