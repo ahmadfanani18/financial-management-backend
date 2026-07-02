@@ -31,9 +31,12 @@ export async function routes(fastify: FastifyInstance) {
       });
     } catch (error) {
       request.log.error(error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      request.log.error('Receipt analysis error:', message);
       return reply.status(500).send({
         error: 'AI_ERROR',
         message: 'Gagal membaca nota. Coba upload ulang atau input manual.',
+        debug: message, // temporary for debugging
       });
     }
   });
