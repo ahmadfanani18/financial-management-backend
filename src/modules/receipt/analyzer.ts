@@ -23,17 +23,21 @@ export async function analyzeReceipt(imageBase64: string): Promise<ExtractionRes
   const mimeMatch = imageBase64.match(/^data:image\/(\w+);base64,/);
   const mimeType = mimeMatch ? `image/${mimeMatch[1]}` : 'image/jpeg';
   const imageData = imageBase64.replace(/^data:image\/\w+;base64,/, '');
-  const imageBuffer = Buffer.from(imageData, 'base64');
 
-  const result = await model.generateContent([
-    PROMPT,
-    {
-      inlineData: {
-        mimeType,
-        data: imageBuffer.toString('base64'),
-      },
-    },
-  ], { timeout: 30000 });
+  const result = await model.generateContent({
+    contents: [{
+      role: "user",
+      parts: [
+        { text: PROMPT },
+        {
+          inlineData: {
+            mimeType,
+            data: imageData,
+          }
+        }
+      ]
+    }]
+  });
 
   const response = result.response;
   const text = response.text().trim();
