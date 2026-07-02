@@ -29,6 +29,7 @@ import { startMarketSyncJob } from './jobs/market-sync.js';
 async function buildApp() {
   const fastify = Fastify({
     logger: true,
+    bodyLimit: 10 * 1024 * 1024, // 10MB for receipt image uploads
   });
 
   await fastify.register(cors, {
