@@ -1,8 +1,8 @@
-import type { FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { analyzeReceiptRequestSchema } from './schemas';
 import { analyzeReceipt } from './analyzer';
 
-const routes = async (fastify: any) => {
+export async function routes(fastify: FastifyInstance) {
   fastify.post('/analyze-receipt', async (request: FastifyRequest, reply: FastifyReply) => {
     const body = request.body as { image?: string };
 
@@ -37,6 +37,4 @@ const routes = async (fastify: any) => {
       });
     }
   });
-};
-
-export default routes;
+}

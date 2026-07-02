@@ -20,6 +20,8 @@ export interface ExtractionResult {
 }
 
 export async function analyzeReceipt(imageBase64: string): Promise<ExtractionResult> {
+  const mimeMatch = imageBase64.match(/^data:image\/(\w+);base64,/);
+  const mimeType = mimeMatch ? `image/${mimeMatch[1]}` : 'image/jpeg';
   const imageData = imageBase64.replace(/^data:image\/\w+;base64,/, '');
   const imageBuffer = Buffer.from(imageData, 'base64');
 
@@ -27,11 +29,11 @@ export async function analyzeReceipt(imageBase64: string): Promise<ExtractionRes
     PROMPT,
     {
       inlineData: {
-        mimeType: 'image/jpeg',
+        mimeType,
         data: imageBuffer.toString('base64'),
       },
     },
-  ]);
+  ], { timeout: 30000 });
 
   const response = result.response;
   const text = response.text().trim();
