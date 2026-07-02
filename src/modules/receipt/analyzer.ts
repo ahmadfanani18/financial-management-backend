@@ -40,12 +40,15 @@ export async function analyzeReceipt(imageBase64: string): Promise<ExtractionRes
   });
 
   const response = result.response;
-  const text = response.text().trim();
+  let text = response.text().trim();
+  // Remove markdown code fences if present
+  text = text.replace(/^```json\s*/, '').replace(/\s*```$/, '');
 
   let parsed: ExtractionResult;
   try {
     parsed = JSON.parse(text);
-  } catch {
+  } catch (e) {
+    console.error('Gemini raw response:', text);
     throw new Error('Gagal membaca nota. Coba upload ulang atau input manual.');
   }
 
