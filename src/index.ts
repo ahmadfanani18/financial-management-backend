@@ -9,6 +9,7 @@ import { accountRoutes } from './modules/account/routes.js';
 import { categoryRoutes } from './modules/category/routes.js';
 import { transactionRoutes } from './modules/transaction/routes.js';
 import { budgetRoutes } from './modules/budget/routes.js';
+import { billRoutes } from './modules/bill/routes.js';
 import { goalRoutes } from './modules/goal/routes.js';
 import { planRoutes } from './modules/plan/routes.js';
 import { aiRoutes } from './modules/ai/routes.js';
@@ -24,6 +25,7 @@ import { adminRoutes, adminUsersRoutes, adminSubscriptionRoutes } from './module
 import { adminReportRoutes } from './modules/admin-report/routes.js';
 import { feedbackRoutes } from './modules/feedback/routes.js';
 import { startMarketSyncJob } from './jobs/market-sync.js';
+import { startBillProcessorJob } from './jobs/bill-processor.js';
 
 async function buildApp() {
   const fastify = Fastify({
@@ -88,6 +90,7 @@ async function buildApp() {
   await fastify.register(categoryRoutes, { prefix: '/api/categories' });
   await fastify.register(transactionRoutes, { prefix: '/api/transactions' });
   await fastify.register(budgetRoutes, { prefix: '/api/budgets' });
+  await fastify.register(billRoutes, { prefix: '/api/bills' });
   await fastify.register(goalRoutes, { prefix: '/api/goals' });
   await fastify.register(planRoutes, { prefix: '/api/plans' });
   await fastify.register(aiRoutes, { prefix: '/api/ai' });
@@ -120,6 +123,7 @@ async function getApp() {
     
     if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
       startMarketSyncJob();
+      startBillProcessorJob();
     }
 
     if (!process.env.VERCEL) {
