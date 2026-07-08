@@ -252,6 +252,7 @@ model Account {
   id          String      @id @default(uuid())
   userId      String
   name        String
+  accountNumber String?
   type        AccountType
   balance     String      @default("0")
   currency    String      @default("IDR")

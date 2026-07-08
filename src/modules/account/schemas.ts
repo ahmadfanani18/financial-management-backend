@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const createAccountSchema = z.object({
   name: z.string().min(1, 'Nama akun wajib diisi'),
+  accountNumber: z.string().optional(),
   type: z.enum(['BANK', 'EWALLET', 'CASH', 'CREDIT_CARD', 'INVESTMENT']),
   balance: z.number().default(0),
   currency: z.string().default('IDR'),
