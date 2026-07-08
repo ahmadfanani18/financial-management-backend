@@ -30,6 +30,7 @@ interface PredictSpendingResponse {
   occasionalTotal?: number;
   totalBudget: number;
   totalSpent: number;
+  totalBillsMonthly: number;
   period: string;
   message: string;
   insufficientData: boolean;
@@ -384,14 +385,23 @@ async predictSpending(userId: string, input: PredictSpendingInput): Promise<Pred
     });
     const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
 
+    // Get bills for fixed recurring expenses context
+    const bills = await prisma.bill.findMany({
+      where: { userId, isActive: true },
+    });
+    const totalBillsMonthly = bills.reduce((sum, b) => sum + parseFloat(b.amount), 0);
+
     if (transactions.length === 0) {
       return {
         predictions: [],
         totalPredicted: 0,
         totalBudget: 0,
         totalSpent: 0,
+        totalBillsMonthly,
         period: `Bulan ${new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`,
-        message: 'Data transaksi masih kurang dari 3 bulan. Tambahkan lebih banyak transaksi untuk mendapatkan prediksi yang akurat.',
+        message: totalBillsMonthly > 0
+          ? `Bills tetap Anda: ${totalBillsMonthly.toLocaleString('id-ID')}/bulan. Tapi data transaksi kurang dari 3 bulan.`
+          : 'Data transaksi masih kurang dari 3 bulan. Tambahkan lebih banyak transaksi untuk mendapatkan prediksi yang akurat.',
         insufficientData: true,
       };
     }
@@ -471,6 +481,9 @@ async predictSpending(userId: string, input: PredictSpendingInput): Promise<Pred
       if (totalBalance > 0) {
         message += ` Total saldo akun: ${totalBalance.toLocaleString('id-ID')}.`;
       }
+      if (totalBillsMonthly > 0) {
+        message += ` Bills tetap: ${totalBillsMonthly.toLocaleString('id-ID')}/bulan.`;
+      }
     }
 
     return {
@@ -479,6 +492,7 @@ async predictSpending(userId: string, input: PredictSpendingInput): Promise<Pred
       occasionalTotal,
       totalBudget,
       totalSpent,
+      totalBillsMonthly,
       period: `Bulan ${new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`,
       message,
       insufficientData: transactions.length === 0,
@@ -529,11 +543,17 @@ async predictSpending(userId: string, input: PredictSpendingInput): Promise<Pred
       include: { category: true },
     });
 
+    // Get bills for fixed recurring expenses
+    const bills = await prisma.bill.findMany({
+      where: { userId, isActive: true },
+    });
+    const monthlyBills = bills.reduce((sum, b) => sum + parseFloat(b.amount), 0);
+
     // Calculate monthly totals
     const income = transactions.filter(t => t.type === 'INCOME').reduce((sum, t) => sum + Number(t.amount), 0);
     const expenses = transactions.filter(t => t.type === 'EXPENSE').reduce((sum, t) => sum + Number(t.amount), 0);
     const currentBalance = totalBalance - expenses;
-    const availableFunds = totalBalance;
+    const availableFunds = Math.max(0, totalBalance - monthlyBills);
 
     const suggestions: SavingSuggestion[] = [];
 
@@ -633,8 +653,9 @@ async predictSpending(userId: string, input: PredictSpendingInput): Promise<Pred
       totalAccountBalance: totalBalance,
       activeGoalsCount: goals.length,
       monthlyIncome: income,
-      monthlyExpenseToUses: expenses,
-      message: suggestions.length > 0 
+      monthlyExpenses: expenses,
+      monthlyBills,
+      message: suggestions.length > 0
         ? `Ditemukan ${suggestions.length} saran berdasarkan analisis keuangan Anda bulan ini.`
         : 'Pertahankan kebiasaan keuangan Anda yang baik!',
     };
@@ -837,8 +858,14 @@ export class SmartSaverService {
     });
     const totalBudgetAmount = budgets.reduce((sum, b) => sum + Number(b.amount), 0);
     
-    // Calculate available for savings = Income - Budget Commitments
-    const availableForSavings = monthlyIncome - totalBudgetAmount;
+    // Get active bills for fixed commitments
+    const bills = await prisma.bill.findMany({
+      where: { userId, isActive: true },
+    });
+    const totalBills = bills.reduce((sum, b) => sum + parseFloat(b.amount), 0);
+    
+    // Calculate available for savings = Income - Budget Commitments - Bills
+    const availableForSavings = monthlyIncome - totalBudgetAmount - totalBills;
     
     // Use higher of budget or actual expense, but sanity check
     // If budget is > 5x actual expense, it's probably not realistic
@@ -869,11 +896,11 @@ export class SmartSaverService {
     // Generate insight
     let insight: string;
     if (existingGoalMonthlyContribution > 0) {
-      insight = `Berdasarkan kondisi keuangan Anda (pendapatan Rp ${Math.round(monthlyIncome).toLocaleString('id-ID')}/bulan, budget komitmen Rp ${Math.round(totalBudgetAmount).toLocaleString('id-ID')}/bulan). `;
+      insight = `Berdasarkan kondisi keuangan Anda (pendapatan Rp ${Math.round(monthlyIncome).toLocaleString('id-ID')}/bulan, budget komitmen Rp ${Math.round(totalBudgetAmount).toLocaleString('id-ID')}/bulan, bills tetap Rp ${Math.round(totalBills).toLocaleString('id-ID')}/bulan). `;
       insight += `Sisa yang tersedia untuk ditabung: Rp ${Math.round(remainingForNewGoal).toLocaleString('id-ID')}/bulan. `;
       insight += `Dengan goal aktif lain membutuhkan Rp ${Math.round(existingGoalMonthlyContribution).toLocaleString('id-ID')}/bulan.`;
     } else {
-      insight = `Berdasarkan kondisi keuangan Anda (pendapatan Rp ${Math.round(monthlyIncome).toLocaleString('id-ID')}/bulan, budget komitmen Rp ${Math.round(totalBudgetAmount).toLocaleString('id-ID')}/bulan). `;
+      insight = `Berdasarkan kondisi keuangan Anda (pendapatan Rp ${Math.round(monthlyIncome).toLocaleString('id-ID')}/bulan, budget komitmen Rp ${Math.round(totalBudgetAmount).toLocaleString('id-ID')}/bulan, bills tetap Rp ${Math.round(totalBills).toLocaleString('id-ID')}/bulan). `;
       insight += `Sisa yang tersedia untuk ditabung: Rp ${Math.round(availableForSavings).toLocaleString('id-ID')}/bulan.`;
     }
     

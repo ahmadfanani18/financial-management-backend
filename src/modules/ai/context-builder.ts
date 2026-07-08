@@ -32,6 +32,25 @@ interface GoalProgress {
   percent: number;
 }
 
+interface BillCategoryBreakdown {
+  category: string;
+  total: number;
+  count: number;
+}
+
+interface UpcomingBill {
+  name: string;
+  amount: number;
+  dueDate: number;
+}
+
+interface BillSummary {
+  totalMonthly: number;
+  byCategory: BillCategoryBreakdown[];
+  upcomingDue: UpcomingBill[];
+  activeCount: number;
+}
+
 export interface FinancialContext {
   period: string;
   summary: {
@@ -47,6 +66,54 @@ export interface FinancialContext {
   topExpenses: TopExpense[];
   budgetProgress: BudgetProgress[];
   goalsProgress: GoalProgress[];
+  bills: BillSummary;
+}
+
+async function getBills(userId: string): Promise<BillSummary> {
+  const bills = await prisma.bill.findMany({
+    where: { userId, isActive: true },
+    include: { category: true },
+  });
+
+  if (bills.length === 0) {
+    return {
+      totalMonthly: 0,
+      byCategory: [],
+      upcomingDue: [],
+      activeCount: 0,
+    };
+  }
+
+  const byCategory = new Map<string, { total: number; count: number }>();
+  let totalMonthly = 0;
+
+  for (const bill of bills) {
+    const amount = parseFloat(bill.amount);
+    totalMonthly += amount;
+    const catName = bill.category.name;
+    const existing = byCategory.get(catName) || { total: 0, count: 0 };
+    byCategory.set(catName, {
+      total: existing.total + amount,
+      count: existing.count + 1,
+    });
+  }
+
+  const sortedByDue = [...bills].sort((a, b) => a.dueDate - b.dueDate);
+
+  return {
+    totalMonthly: Math.round(totalMonthly),
+    byCategory: Array.from(byCategory.entries()).map(([category, data]) => ({
+      category,
+      total: Math.round(data.total),
+      count: data.count,
+    })),
+    upcomingDue: sortedByDue.slice(0, 5).map(b => ({
+      name: b.name,
+      amount: parseFloat(b.amount),
+      dueDate: b.dueDate,
+    })),
+    activeCount: bills.length,
+  };
 }
 
 export async function buildFinancialContext(
@@ -56,7 +123,7 @@ export async function buildFinancialContext(
   const months = options.months ?? 6;
   const startDate = subMonths(new Date(), months);
 
-  const [accounts, expenseTransactions, budgets, goals] = await Promise.all([
+  const [accounts, expenseTransactions, budgets, goals, bills] = await Promise.all([
     prisma.account.findMany({
       where: { userId, isArchived: false },
       select: { name: true, balance: true },
@@ -84,6 +151,8 @@ export async function buildFinancialContext(
         currentAmount: true,
       },
     }),
+
+    getBills(userId),
   ]);
 
   const monthlyTotals = await prisma.transaction.findMany({
@@ -194,6 +263,7 @@ export async function buildFinancialContext(
     topExpenses,
     budgetProgress,
     goalsProgress,
+    bills,
   };
 }
 
@@ -206,6 +276,7 @@ export function buildSystemPrompt(context: FinancialContext): string {
     topExpenses,
     budgetProgress,
     goalsProgress,
+    bills,
   } = context;
 
   const savingsRate = summary.totalIncome > 0
@@ -232,6 +303,12 @@ ${budgetProgress.length > 0 ? budgetProgress.map(b => `- ${b.name}: *Rp ${b.spen
 
 ## Goals Progress
 ${goalsProgress.length > 0 ? goalsProgress.map(g => `- ${g.name}: *Rp ${g.current.toLocaleString('id-ID')}* / *Rp ${g.target.toLocaleString('id-ID')}* (${g.percent}%)`).join('\n') : '- Tidak ada goal aktif'}
+
+## Bills (Fixed Expenses)
+- Total Bulanan: *Rp ${bills.totalMonthly.toLocaleString('id-ID')}*
+- Per Kategori: ${bills.byCategory.map(c => `${c.category} *Rp ${c.total.toLocaleString('id-ID')}* (${c.count})`).join(', ') || 'Tidak ada'}
+- ${bills.activeCount} bills aktif
+- Due dates: ${bills.upcomingDue.map(b => `${b.name} tgl ${b.dueDate}`).join(', ') || 'Tidak ada'}
 
 ## Instruksi
 - Selalu jawab dalam Bahasa Indonesia
