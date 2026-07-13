@@ -1,9 +1,28 @@
 import { prisma } from '../../config/prisma.js';
+import { decrypt } from '../../utils/encryption.js';
 import type { CreatePlanInput, UpdatePlanInput, CreateMilestoneInput, UpdateMilestoneInput } from './schemas.js';
+
+function decryptMilestoneTargetAmount(milestone: any): any {
+  if (!milestone) return milestone;
+  if (milestone.targetAmount && typeof milestone.targetAmount === 'string' && milestone.targetAmount.startsWith('$enc$')) {
+    try {
+      milestone.targetAmount = decrypt(milestone.targetAmount);
+    } catch (err) {
+      console.error('Failed to decrypt milestone targetAmount:', err);
+    }
+  }
+  return milestone;
+}
+
+function decryptPlanMilestones(plan: any): any {
+  if (!plan || !plan.milestones) return plan;
+  plan.milestones = plan.milestones.map(decryptMilestoneTargetAmount);
+  return plan;
+}
 
 export class PlanService {
   async getAll(userId: string) {
-    return prisma.plan.findMany({
+    const plans = await prisma.plan.findMany({
       where: { userId },
       include: { 
         milestones: { orderBy: { order: 'asc' }, include: { goal: true } },
@@ -12,6 +31,7 @@ export class PlanService {
       },
       orderBy: { createdAt: 'desc' },
     });
+    return plans.map(decryptPlanMilestones);
   }
 
   async getById(id: string, userId: string) {
@@ -24,7 +44,7 @@ export class PlanService {
       },
     });
     if (!plan) throw new Error('Rencana tidak ditemukan');
-    return plan;
+    return decryptPlanMilestones(plan);
   }
 
   async create(userId: string, input: CreatePlanInput) {

@@ -82,11 +82,17 @@ function decryptFields(data: unknown, fields: string[]): unknown {
   for (const field of fields) {
     if (field in result) {
       const value = result[field]
-      if (typeof value === 'string' && value.startsWith('$enc$')) {
+      if (value === null || value === undefined) continue
+      if (typeof value !== 'string') {
+        result[field] = String(value)
+        continue
+      }
+      if (value.startsWith('$enc$')) {
         try {
           result[field] = decrypt(value)
         } catch (err) {
           console.error(`Failed to decrypt field ${field}:`, err)
+          result[field] = null
         }
       }
     }
