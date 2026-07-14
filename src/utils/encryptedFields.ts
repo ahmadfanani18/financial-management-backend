@@ -55,13 +55,21 @@ function encryptFields(data: unknown, fields: string[]): unknown {
       const value = result[field]
       if (value === null || value === undefined) continue
 
-      if (typeof value === 'string' && value.startsWith('$enc$')) continue
+      if (typeof value === 'object') {
+        const opKeys = Object.keys(value)
+        const isPrismaOp = opKeys.some(k =>
+          k.startsWith('$') ||
+          ['increment', 'decrement', 'set', 'push', 'pull', 'pop', 'upsert'].includes(k)
+        )
+        if (isPrismaOp) continue
+      }
 
-      const plainText = typeof value === 'object' && 'toString' in value
-        ? (value as { toString: () => string }).toString()
-        : String(value)
-
-      result[field] = encrypt(plainText)
+      if (typeof value === 'string') {
+        if (value.startsWith('$enc$')) continue
+        result[field] = encrypt(value)
+      } else {
+        result[field] = encrypt(String(value))
+      }
     }
   }
 
@@ -83,17 +91,16 @@ function decryptFields(data: unknown, fields: string[]): unknown {
     if (field in result) {
       const value = result[field]
       if (value === null || value === undefined) continue
-      if (typeof value !== 'string') {
-        result[field] = String(value)
-        continue
-      }
-      if (value.startsWith('$enc$')) {
+
+      if (typeof value === 'string' && value.startsWith('$enc$')) {
         try {
           result[field] = decrypt(value)
         } catch (err) {
           console.error(`Failed to decrypt field ${field}:`, err)
           result[field] = null
         }
+      } else {
+        result[field] = value
       }
     }
   }

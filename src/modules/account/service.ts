@@ -44,7 +44,8 @@ export class AccountService {
       where: { userId, isArchived: false },
       select: { balance: true },
     });
-    return accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
+    const total = accounts.reduce((sum, acc) => sum + Number(acc.balance || 0), 0);
+    return Number.isNaN(total) ? 0 : total;
   }
 
   async archive(id: string, userId: string) {

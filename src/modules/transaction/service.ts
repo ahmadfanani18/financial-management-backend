@@ -184,9 +184,12 @@ export class TransactionService {
 
       if (input.type === 'INCOME' || input.type === 'EXPENSE') {
         const adjustment = input.type === 'INCOME' ? input.amount : -input.amount;
+        const account = await tx.account.findUnique({ where: { id: input.accountId } });
+        const currentBalance = Number(account?.balance || 0);
+        const newBalance = currentBalance + adjustment;
         await tx.account.update({
           where: { id: input.accountId },
-          data: { balance: { increment: adjustment } },
+          data: { balance: String(newBalance) },
         });
 
         if (input.type === 'EXPENSE' && input.deductGoals) {
@@ -204,9 +207,10 @@ export class TransactionService {
             throw new Error('Jumlah Goals tidak mencukupi untuk transaksi ini');
           }
 
+          const goalDec1 = await tx.goal.findUnique({ where: { id: goal.id } });
           await tx.goal.update({
             where: { id: goal.id },
-            data: { currentAmount: { decrement: input.amount } },
+            data: { currentAmount: String(Number(goalDec1!.currentAmount) - input.amount) },
           });
         }
 
@@ -241,11 +245,10 @@ export class TransactionService {
                 },
               });
 
+              const goalInc1 = await tx.goal.findUnique({ where: { id: goal.id } });
               await tx.goal.update({
                 where: { id: goal.id },
-                data: {
-                  currentAmount: { increment: input.amount },
-                },
+                data: { currentAmount: String(Number(goalInc1!.currentAmount) + input.amount) },
               });
             }
           }
@@ -254,13 +257,17 @@ export class TransactionService {
 
       if (input.type === 'TRANSFER' && input.fromAccountId && input.toAccountId) {
         const totalDeduct = Number(input.amount) + adminFee;
+        const fromAccount = await tx.account.findUnique({ where: { id: input.fromAccountId } });
+        const toAccount = await tx.account.findUnique({ where: { id: input.toAccountId } });
+        const fromBalance = Number(fromAccount?.balance || 0) - totalDeduct;
+        const toBalance = Number(toAccount?.balance || 0) + Number(input.amount);
         await tx.account.update({
           where: { id: input.fromAccountId },
-          data: { balance: { decrement: totalDeduct } },
+          data: { balance: String(fromBalance) },
         });
         await tx.account.update({
           where: { id: input.toAccountId },
-          data: { balance: { increment: input.amount } },
+          data: { balance: String(toBalance) },
         });
 
         await this.handleAutoContribution(tx, input.toAccountId, input.amount, userId, record.id, new Date(input.date));
@@ -297,9 +304,11 @@ export class TransactionService {
 
       if (existing.type === 'INCOME' || existing.type === 'EXPENSE') {
         const reverse = existing.type === 'INCOME' ? -Number(existing.amount) : Number(existing.amount);
+        const acc = await tx.account.findUnique({ where: { id: existing.accountId } });
+        const newBal = Number(acc?.balance || 0) + reverse;
         await tx.account.update({
           where: { id: existing.accountId },
-          data: { balance: { increment: reverse } },
+          data: { balance: String(newBal) },
         });
 
         if (existing.type === 'EXPENSE' && existingDeductGoals) {
@@ -308,9 +317,10 @@ export class TransactionService {
             include: { linkedGoal: true },
           });
           if (account?.linkedGoalId) {
+            const goalInc2 = await tx.goal.findUnique({ where: { id: account.linkedGoalId } });
             await tx.goal.update({
               where: { id: account.linkedGoalId },
-              data: { currentAmount: { increment: existing.amount } },
+              data: { currentAmount: String(Number(goalInc2!.currentAmount) + Number(existing.amount)) },
             });
           }
         }
@@ -318,13 +328,17 @@ export class TransactionService {
 
       if (existing.type === 'TRANSFER' && existing.fromAccountId && existing.toAccountId) {
         const existingTotalDeduct = Number(existing.amount) + Number(existing.adminFee ?? 0);
+        const fromAcc = await tx.account.findUnique({ where: { id: existing.fromAccountId } });
+        const toAcc = await tx.account.findUnique({ where: { id: existing.toAccountId } });
+        const newFromBal = Number(fromAcc?.balance || 0) + existingTotalDeduct;
+        const newToBal = Number(toAcc?.balance || 0) - Number(existing.amount);
         await tx.account.update({
           where: { id: existing.fromAccountId },
-          data: { balance: { increment: existingTotalDeduct } },
+          data: { balance: String(newFromBal) },
         });
         await tx.account.update({
           where: { id: existing.toAccountId },
-          data: { balance: { decrement: existing.amount } },
+          data: { balance: String(newToBal) },
         });
       }
 
@@ -332,9 +346,10 @@ export class TransactionService {
         where: { sourceTransactionId: id },
       });
       if (existingContribution) {
+        const goalDec2 = await tx.goal.findUnique({ where: { id: existingContribution.goalId } });
         await tx.goal.update({
           where: { id: existingContribution.goalId },
-          data: { currentAmount: { decrement: existingContribution.amount } },
+          data: { currentAmount: String(Number(goalDec2!.currentAmount) - Number(existingContribution.amount)) },
         });
         await tx.goalContribution.delete({
           where: { id: existingContribution.id },
@@ -343,9 +358,11 @@ export class TransactionService {
 
       if (newType === 'INCOME' || newType === 'EXPENSE') {
         const adjustment = newType === 'INCOME' ? newAmount : -newAmount;
+        const acc = await tx.account.findUnique({ where: { id: newAccountId } });
+        const newBal = Number(acc?.balance || 0) + adjustment;
         await tx.account.update({
           where: { id: newAccountId },
-          data: { balance: { increment: adjustment } },
+          data: { balance: String(newBal) },
         });
 
         const newDeductGoals = input.deductGoals ?? existing.deductGoals;
@@ -364,9 +381,10 @@ export class TransactionService {
             throw new Error('Jumlah Goals tidak mencukupi untuk transaksi ini');
           }
 
+          const goalDec3 = await tx.goal.findUnique({ where: { id: goal.id } });
           await tx.goal.update({
             where: { id: goal.id },
-            data: { currentAmount: { decrement: newAmount } },
+            data: { currentAmount: String(Number(goalDec3!.currentAmount) - newAmount) },
           });
         }
 
@@ -388,7 +406,8 @@ export class TransactionService {
                   sourceTransactionId: id,
                 },
               });
-              await tx.goal.update({ where: { id: goal.id }, data: { currentAmount: { increment: newAmount } } });
+              const goalInc3 = await tx.goal.findUnique({ where: { id: goal.id } });
+              await tx.goal.update({ where: { id: goal.id }, data: { currentAmount: String(Number(goalInc3!.currentAmount) + newAmount) } });
             }
           }
         }
@@ -396,13 +415,17 @@ export class TransactionService {
 
       if (newType === 'TRANSFER' && newFromAccountId && newToAccountId) {
         const newTotalDeduct = newAmount + newAdminFee;
+        const fromAcc = await tx.account.findUnique({ where: { id: newFromAccountId } });
+        const toAcc = await tx.account.findUnique({ where: { id: newToAccountId } });
+        const newFromBal = Number(fromAcc?.balance || 0) - newTotalDeduct;
+        const newToBal = Number(toAcc?.balance || 0) + newAmount;
         await tx.account.update({
           where: { id: newFromAccountId },
-          data: { balance: { decrement: newTotalDeduct } },
+          data: { balance: String(newFromBal) },
         });
         await tx.account.update({
           where: { id: newToAccountId },
-          data: { balance: { increment: newAmount } },
+          data: { balance: String(newToBal) },
         });
 
         const toAccount = await tx.account.findUnique({ where: { id: newToAccountId }, include: { linkedGoal: true } });
@@ -420,7 +443,8 @@ export class TransactionService {
                 sourceTransactionId: id,
               },
             });
-            await tx.goal.update({ where: { id: goal.id }, data: { currentAmount: { increment: newAmount } } });
+            const goalInc4 = await tx.goal.findUnique({ where: { id: goal.id } });
+            await tx.goal.update({ where: { id: goal.id }, data: { currentAmount: String(Number(goalInc4!.currentAmount) + newAmount) } });
           }
         }
       }
@@ -449,9 +473,12 @@ export class TransactionService {
     await prisma.$transaction(async (tx) => {
       if (transaction.type === 'INCOME' || transaction.type === 'EXPENSE') {
         const adjustment = transaction.type === 'INCOME' ? -Number(transaction.amount) : Number(transaction.amount);
+        const account = await tx.account.findUnique({ where: { id: transaction.accountId } });
+        const currentBalance = Number(account?.balance || 0);
+        const newBalance = currentBalance + adjustment;
         await tx.account.update({
           where: { id: transaction.accountId },
-          data: { balance: { increment: adjustment } },
+          data: { balance: String(newBalance) },
         });
 
         if (transaction.type === 'EXPENSE' && transaction.deductGoals) {
@@ -460,9 +487,10 @@ export class TransactionService {
             include: { linkedGoal: true },
           });
           if (account?.linkedGoalId) {
+            const goalInc5 = await tx.goal.findUnique({ where: { id: account.linkedGoalId } });
             await tx.goal.update({
               where: { id: account.linkedGoalId },
-              data: { currentAmount: { increment: transaction.amount } },
+              data: { currentAmount: String(Number(goalInc5!.currentAmount) + Number(transaction.amount)) },
             });
           }
         }
@@ -470,13 +498,17 @@ export class TransactionService {
 
       if (transaction.type === 'TRANSFER' && transaction.fromAccountId && transaction.toAccountId) {
         const totalRefund = Number(transaction.amount) + Number(transaction.adminFee ?? 0);
+        const fromAcc = await tx.account.findUnique({ where: { id: transaction.fromAccountId } });
+        const toAcc = await tx.account.findUnique({ where: { id: transaction.toAccountId } });
+        const newFromBal = Number(fromAcc?.balance || 0) + totalRefund;
+        const newToBal = Number(toAcc?.balance || 0) - Number(transaction.amount);
         await tx.account.update({
           where: { id: transaction.fromAccountId },
-          data: { balance: { increment: totalRefund } },
+          data: { balance: String(newFromBal) },
         });
         await tx.account.update({
           where: { id: transaction.toAccountId },
-          data: { balance: { decrement: transaction.amount } },
+          data: { balance: String(newToBal) },
         });
       }
 
@@ -485,9 +517,10 @@ export class TransactionService {
       });
 
       if (contribution) {
+        const goalDec4 = await tx.goal.findUnique({ where: { id: contribution.goalId } });
         await tx.goal.update({
           where: { id: contribution.goalId },
-          data: { currentAmount: { decrement: contribution.amount } },
+          data: { currentAmount: String(Number(goalDec4!.currentAmount) - Number(contribution.amount)) },
         });
 
         const goal = await tx.goal.findUnique({ where: { id: contribution.goalId } });
@@ -578,9 +611,10 @@ export class TransactionService {
       }
     }
 
+    const goalInc6 = await tx.goal.findUnique({ where: { id: goal.id } });
     await tx.goal.update({
       where: { id: goal.id },
-      data: { currentAmount: { increment: amount } },
+      data: { currentAmount: String(Number(goalInc6!.currentAmount) + amount) },
     });
 
     const budgets = await tx.budget.findMany({
@@ -607,9 +641,10 @@ export class TransactionService {
     });
 
     if (goalBudget) {
+      const budgetInc = await tx.budget.findUnique({ where: { id: goalBudget.id } });
       await tx.budget.update({
         where: { id: goalBudget.id },
-        data: { spent: { increment: amount } },
+        data: { spent: String(Number(budgetInc!.spent) + amount) },
       });
     }
   }
