@@ -35,3 +35,4 @@ export async function deleteBudgetHandler(request, reply) {
     await budgetService.delete(id, request.user.id);
     return reply.status(204).send();
 }
+//# sourceMappingURL=controller.js.map

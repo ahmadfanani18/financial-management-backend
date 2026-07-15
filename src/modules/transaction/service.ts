@@ -571,6 +571,567 @@ export class TransactionService {
     return { income, expense, balance: income - expense };
   }
 
+  async getTemplateData(userId: string) {
+    const [categories, accounts] = await Promise.all([
+      prisma.category.findMany({
+        where: { userId },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      }),
+      prisma.account.findMany({
+        where: { userId },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      }),
+    ]);
+    return { categories, accounts };
+  }
+
+  async parseAndValidateCsv(
+    userId: string,
+    csvContent: string
+  ): Promise<{
+    validRows: Array<{
+      date: string;
+      description: string;
+      categoryId: string;
+      accountId: string;
+      categoryName: string;
+      accountName: string;
+      amount: number;
+      type: 'INCOME' | 'EXPENSE';
+    }>;
+    errorRows: Array<{ row: number; data: Record<string, any>; error: string }>;
+    summary: { valid: number; errors: number; total: number };
+  }> {
+    const Papa = await import('papaparse');
+    const parsed = Papa.default.parse(csvContent, { header: true, skipEmptyLines: true });
+
+    const categories = await prisma.category.findMany({
+      where: { userId },
+      select: { id: true, name: true },
+    });
+    const categoryMap = new Map(categories.map(c => [c.name.toLowerCase(), c]));
+    const categoryNameMap = new Map(categories.map(c => [c.id, c.name]));
+
+    const accounts = await prisma.account.findMany({
+      where: { userId },
+      select: { id: true, name: true },
+    });
+    const accountMap = new Map(accounts.map(a => [a.name.toLowerCase(), a]));
+    const accountNameMap = new Map(accounts.map(a => [a.id, a.name]));
+
+    const validRows: Array<{
+      date: string;
+      description: string;
+      categoryId: string;
+      accountId: string;
+      categoryName: string;
+      accountName: string;
+      amount: number;
+      type: 'INCOME' | 'EXPENSE';
+    }> = [];
+    const errorRows: Array<{ row: number; data: Record<string, any>; error: string }> = [];
+    const isoDateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    const dmyDateRegex = /^\d{2}\/\d{2}\/\d{4}$/;
+
+    const parseDate = (dateStr: string): string | null => {
+      if (isoDateRegex.test(dateStr)) {
+        return dateStr;
+      }
+      if (dmyDateRegex.test(dateStr)) {
+        const [day, month, year] = dateStr.split('/');
+        return `${year}-${month}-${day}`;
+      }
+      return null;
+    };
+
+    parsed.data.forEach((row: any, index: number) => {
+      if (!row.date && !row.description) return;
+      
+      const rowNum = index + 2;
+      const dateInput = String(row.date || '').trim();
+      const description = String(row.description || '').trim();
+      const categoryNameInput = String(row.category || '').trim().toLowerCase();
+      const accountNameInput = String(row.account || '').trim().toLowerCase();
+      const amount = parseFloat(String(row.amount || '').trim());
+      const typeInput = String(row.type || '').trim().toUpperCase();
+
+      const errors: string[] = [];
+
+      const parsedDate = parseDate(dateInput);
+      if (!parsedDate) {
+        errors.push('Format tanggal harus YYYY-MM-DD atau DD/MM/YYYY');
+      }
+
+      if (!description) {
+        errors.push('Deskripsi wajib diisi');
+      }
+
+      const category = categoryMap.get(categoryNameInput);
+      if (!category) {
+        errors.push('Kategori tidak ditemukan');
+      }
+
+      const account = accountMap.get(accountNameInput);
+      if (!account) {
+        errors.push('Akun tidak ditemukan');
+      }
+
+      if (isNaN(amount) || amount <= 0) {
+        errors.push('Jumlah harus angka positif');
+      }
+
+      if (typeInput !== 'INCOME' && typeInput !== 'EXPENSE') {
+        errors.push('Tipe harus INCOME atau EXPENSE');
+      }
+
+      if (errors.length > 0) {
+        errorRows.push({ row: rowNum, data: row, error: errors.join('; ') });
+      } else {
+        validRows.push({
+          date: parsedDate!,
+          description,
+          categoryId: category!.id,
+          accountId: account!.id,
+          categoryName: categoryNameMap.get(category!.id) || category!.name,
+          accountName: accountNameMap.get(account!.id) || account!.name,
+          amount,
+          type: typeInput as 'INCOME' | 'EXPENSE',
+        });
+      }
+    });
+
+    return {
+      validRows,
+      errorRows,
+      summary: {
+        valid: validRows.length,
+        errors: errorRows.length,
+        total: parsed.data.length,
+      },
+    };
+  }
+
+  async parseAndValidateXlsx(
+    userId: string,
+    buffer: Buffer
+  ): Promise<{
+    validRows: Array<{
+      date: string;
+      description: string;
+      categoryId: string;
+      accountId: string;
+      categoryName: string;
+      accountName: string;
+      fromAccountId?: string;
+      toAccountId?: string;
+      fromAccountName?: string;
+      toAccountName?: string;
+      amount: number;
+      adminFee?: number;
+      type: 'INCOME' | 'EXPENSE' | 'TRANSFER';
+    }>;
+    errorRows: Array<{ row: number; data: Record<string, any>; error: string }>;
+    summary: { valid: number; errors: number; total: number };
+  }> {
+    const ExcelJSModule = await import('exceljs');
+    const ExcelJS = ExcelJSModule.default || ExcelJSModule;
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    
+    const sheet = workbook.getWorksheet(1);
+    
+    // Read header row (row 1) - only first 9 columns
+    const headerRow = sheet.getRow(1);
+    const headers: string[] = [];
+    for (let col = 1; col <= 9; col++) {
+      headers.push(String(headerRow.getCell(col).value || '').toLowerCase().trim().replace(/\*+$/, ''));
+    }
+    
+    const headerMap: Record<string, number> = {};
+    headers.forEach((h, i) => { headerMap[h] = i; });
+    
+    // Read data rows (rows 3 onwards, before reference section at row 100)
+    const dataRows: { rowNum: number; data: any[] }[] = [];
+    sheet.eachRow((row, rowNumber) => {
+      if (rowNumber >= 3 && rowNumber < 100) {
+        const rowData: any[] = [];
+        for (let col = 1; col <= 9; col++) {
+          const cell = row.getCell(col);
+          let value = cell.value;
+          // Handle Excel date serial numbers
+          if (col === 1 && typeof value === 'number' && value > 0 && value < 100000) {
+            const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+            const d = new Date(excelEpoch.getTime() + value * 86400000);
+            const year = d.getUTCFullYear();
+            const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(d.getUTCDate()).padStart(2, '0');
+            value = `${year}-${month}-${day}`;
+          }
+          rowData.push(value);
+        }
+        dataRows.push({ rowNum: rowNumber, data: rowData });
+      }
+    });
+    
+    if (dataRows.length === 0) {
+      return {
+        validRows: [],
+        errorRows: [{ row: 1, data: {}, error: 'File kosong atau tidak memiliki data' }],
+        summary: { valid: 0, errors: 1, total: 0 },
+      };
+    }
+    
+    const [categories, accounts] = await Promise.all([
+      prisma.category.findMany({
+        where: { userId },
+        select: { id: true, name: true },
+      }),
+      prisma.account.findMany({
+        where: { userId },
+        select: { id: true, name: true },
+      }),
+    ]);
+    
+    const categoryMap = new Map(categories.map(c => [c.name.toLowerCase(), c]));
+    const accountMap = new Map(accounts.map(a => [a.name.toLowerCase(), a]));
+    
+    const validRows: any[] = [];
+    const errorRows: any[] = [];
+    
+    for (const { rowNum, data: row } of dataRows) {
+      const getValue = (col: string) => {
+        const idx = headerMap[col];
+        return idx !== undefined ? String(row[idx] || '').trim() : '';
+      };
+      
+      const dateInput = getValue('date');
+      const description = getValue('description');
+      const typeInput = getValue('type').toLowerCase();
+      const categoryNameInput = getValue('category').toLowerCase();
+      const accountNameInput = getValue('account').toLowerCase();
+      const fromAccountInput = getValue('fromaccount').toLowerCase();
+      const toAccountInput = getValue('toaccount').toLowerCase();
+      const amountStr = getValue('amount');
+      const adminFeeStr = getValue('adminfee');
+      
+      const errors: string[] = [];
+      
+      if (!dateInput && !description) continue;
+      
+      const parsedDate = this.parseDateString(dateInput);
+      if (!parsedDate) {
+        errors.push('Format tanggal tidak valid. Gunakan YYYY-MM-DD atau DD/MM/YYYY');
+      }
+      
+      if (!description) {
+        errors.push('Deskripsi wajib diisi');
+      }
+      
+      if (!['income', 'expense', 'transfer'].includes(typeInput)) {
+        errors.push('Type harus: income, expense, atau transfer');
+      }
+      
+      const amount = parseFloat(amountStr);
+      if (isNaN(amount) || amount <= 0) {
+        errors.push('Jumlah harus angka positif');
+      }
+      
+      let categoryId: string | undefined;
+      let accountId: string | undefined;
+      let fromAccountId: string | undefined;
+      let toAccountId: string | undefined;
+      
+      if (typeInput === 'transfer') {
+        const fromAccount = accountMap.get(fromAccountInput);
+        const toAccount = accountMap.get(toAccountInput);
+        
+        if (!fromAccount) {
+          errors.push(`Akun sumber transfer "${fromAccountInput}" tidak ditemukan`);
+        }
+        if (!toAccount) {
+          errors.push(`Akun tujuan transfer "${toAccountInput}" tidak ditemukan`);
+        }
+        
+        fromAccountId = fromAccount?.id;
+        toAccountId = toAccount?.id;
+      } else {
+        const category = categoryMap.get(categoryNameInput);
+        const account = accountMap.get(accountNameInput);
+        
+        if (!category) {
+          errors.push(`Kategori "${categoryNameInput}" tidak ditemukan`);
+        }
+        if (!account) {
+          errors.push(`Akun "${accountNameInput}" tidak ditemukan`);
+        }
+        
+        categoryId = category?.id;
+        accountId = account?.id;
+      }
+      
+      const adminFee = adminFeeStr && adminFeeStr !== '-' ? parseFloat(adminFeeStr) : undefined;
+      
+      if (errors.length > 0) {
+        errorRows.push({ row: rowNum, data: { date: dateInput, description, type: typeInput, category: categoryNameInput, account: accountNameInput, fromaccount: fromAccountInput, toaccount: toAccountInput, amount: amountStr }, error: errors.join('; ') });
+      } else {
+        validRows.push({
+          date: parsedDate!,
+          description,
+          categoryId,
+          accountId,
+          categoryName: categoryNameInput,
+          accountName: accountNameInput,
+          fromAccountId,
+          toAccountId,
+          fromAccountName: fromAccountInput,
+          toAccountName: toAccountInput,
+          amount,
+          adminFee,
+          type: typeInput.toUpperCase() as 'INCOME' | 'EXPENSE' | 'TRANSFER',
+        });
+      }
+    }
+    
+    return {
+      validRows,
+      errorRows,
+      summary: {
+        valid: validRows.length,
+        errors: errorRows.length,
+        total: dataRows.length,
+      },
+    };
+  }
+
+  private parseDateString(dateStr: string): string | null {
+    const isoRegex = /^\d{4}-\d{2}-\d{2}$/;
+    const dmyRegex = /^\d{2}\/\d{2}\/\d{4}$/;
+    
+    if (isoRegex.test(dateStr)) return dateStr;
+    if (dmyRegex.test(dateStr)) {
+      const [day, month, year] = dateStr.split('/');
+      return `${year}-${month}-${day}`;
+    }
+    return null;
+  }
+
+  async importTransactions(
+    userId: string,
+    transactions: Array<{
+      date: string;
+      description: string;
+      categoryId?: string;
+      accountId?: string;
+      fromAccountId?: string;
+      toAccountId?: string;
+      amount: number;
+      adminFee?: number;
+      type: 'INCOME' | 'EXPENSE' | 'TRANSFER';
+    }>
+  ) {
+    const imported: string[] = [];
+    const failed: Array<{ data: Record<string, any>; error: string }> = [];
+
+    await prisma.$transaction(async (tx) => {
+      for (const txData of transactions) {
+        try {
+          await this.createWithTx(tx, userId, {
+            date: txData.date,
+            description: txData.description,
+            categoryId: txData.categoryId,
+            accountId: txData.accountId,
+            fromAccountId: txData.fromAccountId,
+            toAccountId: txData.toAccountId,
+            amount: txData.amount,
+            adminFee: txData.adminFee,
+            type: txData.type,
+          });
+          imported.push(txData.description);
+        } catch (error) {
+          failed.push({
+            data: txData,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+    });
+
+    return { imported: imported.length, failed: failed.length, errors: failed };
+  }
+
+  private async createWithTx(
+    tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+    userId: string,
+    input: CreateTransactionInput
+  ) {
+    if (input.type === 'EXPENSE' && input.categoryId) {
+      const budgets = await tx.budget.findMany({
+        where: {
+          userId,
+          categoryId: input.categoryId,
+          isActive: true,
+        },
+      });
+
+      if (budgets.length > 0) {
+        const transactionDate = new Date(input.date);
+        let validBudget = null;
+
+        for (const budget of budgets) {
+          const startDate = new Date(budget.startDate);
+          const endDate = budget.endDate ? new Date(budget.endDate) : calculateBudgetEndDate(startDate, budget.period);
+
+          if (transactionDate >= startDate && transactionDate <= endDate) {
+            validBudget = budget;
+            break;
+          }
+        }
+
+        if (!validBudget) {
+          const periods = budgets.map(b => {
+            const s = new Date(b.startDate);
+            const e = b.endDate ? new Date(b.endDate) : calculateBudgetEndDate(s, b.period);
+            return `${s.toLocaleDateString('id-ID')} - ${e.toLocaleDateString('id-ID')}`;
+          }).join(', ');
+          throw new Error(`Transaksi pada tanggal ${transactionDate.toLocaleDateString('id-ID')} tidak berada dalam periode budget aktif (${periods}).`);
+        }
+      }
+    }
+
+    if (input.type === 'TRANSFER' && input.adminFee && input.adminFee > Number(input.amount)) {
+      throw new Error('Biaya admin tidak boleh lebih besar dari jumlah transfer');
+    }
+
+    const { tagIds, ...data } = input;
+    const adminFee = Number(input.adminFee ?? 0);
+
+    const transactionData = {
+      type: input.type,
+      amount: input.amount,
+      accountId: input.accountId,
+      categoryId: input.categoryId,
+      fromAccountId: input.fromAccountId,
+      toAccountId: input.toAccountId,
+      description: input.description || '',
+      note: input.note,
+      date: new Date(input.date),
+      receiptUrl: input.receiptUrl,
+      isRecurring: input.isRecurring,
+      recurringPattern: input.recurringPattern,
+      userId,
+      adminFee,
+      deductGoals: input.deductGoals ?? false,
+    };
+
+    const record = await tx.transaction.create({
+      data: transactionData,
+    });
+
+    if (tagIds?.length) {
+      await tx.transactionTag.createMany({
+        data: tagIds.map(tagId => ({
+          transactionId: record.id,
+          tagId,
+        })),
+      });
+    }
+
+    if (input.type === 'INCOME' || input.type === 'EXPENSE') {
+      const adjustment = input.type === 'INCOME' ? input.amount : -input.amount;
+      const account = await tx.account.findUnique({ where: { id: input.accountId } });
+      const currentBalance = Number(account?.balance || 0);
+      const newBalance = currentBalance + adjustment;
+      await tx.account.update({
+        where: { id: input.accountId },
+        data: { balance: String(newBalance) },
+      });
+
+      if (input.type === 'EXPENSE' && input.deductGoals) {
+        const account = await tx.account.findUnique({
+          where: { id: input.accountId },
+          include: { linkedGoal: true },
+        });
+
+        if (!account?.linkedGoalId) {
+          throw new Error('Akun ini tidak terhubung dengan Goals manapun');
+        }
+
+        const goal = account.linkedGoal;
+        if (Number(goal.currentAmount) < input.amount) {
+          throw new Error('Jumlah Goals tidak mencukupi untuk transaksi ini');
+        }
+
+        const goalDec1 = await tx.goal.findUnique({ where: { id: goal.id } });
+        await tx.goal.update({
+          where: { id: goal.id },
+          data: { currentAmount: String(Number(goalDec1!.currentAmount) - input.amount) },
+        });
+      }
+
+      if (input.type === 'EXPENSE' && input.categoryId) {
+        const category = await tx.category.findFirst({
+          where: {
+            id: input.categoryId,
+            name: { startsWith: 'Tabungan -' },
+          },
+        });
+
+        if (category) {
+          const goalName = category.name.replace('Tabungan - ', '').trim();
+
+          const goal = await tx.goal.findFirst({
+            where: {
+              userId,
+              name: goalName,
+              isLocked: false,
+            },
+          });
+
+          if (goal) {
+            await tx.goalContribution.create({
+              data: {
+                goalId: goal.id,
+                amount: input.amount,
+                date: new Date(input.date),
+                note: input.note || `Dari transaksi: ${category.name}`,
+                accountId: input.accountId,
+                sourceTransactionId: record.id,
+              },
+            });
+
+            const goalInc1 = await tx.goal.findUnique({ where: { id: goal.id } });
+            await tx.goal.update({
+              where: { id: goal.id },
+              data: { currentAmount: String(Number(goalInc1!.currentAmount) + input.amount) },
+            });
+          }
+        }
+      }
+    }
+
+    if (input.type === 'TRANSFER' && input.fromAccountId && input.toAccountId) {
+      const totalDeduct = Number(input.amount) + adminFee;
+      const fromAccount = await tx.account.findUnique({ where: { id: input.fromAccountId } });
+      const toAccount = await tx.account.findUnique({ where: { id: input.toAccountId } });
+      const fromBalance = Number(fromAccount?.balance || 0) - totalDeduct;
+      const toBalance = Number(toAccount?.balance || 0) + Number(input.amount);
+      await tx.account.update({
+        where: { id: input.fromAccountId },
+        data: { balance: String(fromBalance) },
+      });
+      await tx.account.update({
+        where: { id: input.toAccountId },
+        data: { balance: String(toBalance) },
+      });
+
+      await this.handleAutoContribution(tx, input.toAccountId, input.amount, userId, record.id, new Date(input.date));
+    }
+
+    return record;
+  }
+
   private async handleAutoContribution(tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0], accountId: string, amount: number, userId: string, sourceTransactionId?: string, txDate?: Date) {
     const account = await tx.account.findUnique({
       where: { id: accountId },

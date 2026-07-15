@@ -68,3 +68,4 @@ export async function createBudgetsFromMilestonesHandler(request, reply) {
     const result = await planService.createBudgetsFromMilestones(id, request.user.id);
     return reply.status(201).send(result);
 }
+//# sourceMappingURL=controller.js.map

@@ -17,3 +17,4 @@ export async function updateNotificationPreferencesHandler(request, reply) {
     const prefs = await userService.updateNotificationPreferences(request.user.id, request.body);
     return { preferences: prefs };
 }
+//# sourceMappingURL=controller.js.map

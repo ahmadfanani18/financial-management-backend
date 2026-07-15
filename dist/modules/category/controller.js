@@ -25,3 +25,4 @@ export async function deleteCategoryHandler(request, reply) {
     await categoryService.delete(id, request.user.id);
     return reply.status(204).send();
 }
+//# sourceMappingURL=controller.js.map

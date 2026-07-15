@@ -151,9 +151,10 @@ export class GoalService {
                 throw new Error('Goal terkunci - hanya nama yang bisa diubah');
             }
         }
+        const { createBudget, monthlyAmount, linkedAccountId, ...goalData } = input;
         return prisma.goal.update({
             where: { id },
-            data: input,
+            data: goalData,
         });
     }
     async delete(id, userId) {
@@ -201,9 +202,11 @@ export class GoalService {
                         date: new Date(),
                     },
                 });
+                const acc = await tx.account.findUnique({ where: { id: accountId } });
+                const newBal = Number(acc?.balance || 0) + totalContributions;
                 await tx.account.update({
                     where: { id: accountId },
-                    data: { balance: { increment: totalContributions } },
+                    data: { balance: String(newBal) },
                 });
             }
             await tx.goalContribution.deleteMany({ where: { goalId: id } });
@@ -228,9 +231,10 @@ export class GoalService {
                     note: input.note,
                 },
             });
+            const goalForInc = await tx.goal.findUnique({ where: { id } });
             await tx.goal.update({
                 where: { id },
-                data: { currentAmount: { increment: input.amount } },
+                data: { currentAmount: String(Number(goalForInc.currentAmount) + input.amount) },
             });
             if (accountId) {
                 let category = await tx.category.findFirst({
@@ -259,9 +263,11 @@ export class GoalService {
                         date: input.date,
                     },
                 });
+                const acc = await tx.account.findUnique({ where: { id: accountId } });
+                const newBal = Number(acc?.balance || 0) - input.amount;
                 await tx.account.update({
                     where: { id: accountId },
-                    data: { balance: { decrement: input.amount } },
+                    data: { balance: String(newBal) },
                 });
                 await tx.goalContribution.update({
                     where: { id: contribution.id },
@@ -354,18 +360,17 @@ export class GoalService {
                     categoryId: categoryId,
                 },
             });
+            const goalForInc2 = await tx.goal.findUnique({ where: { id: goalId } });
             await tx.goal.update({
                 where: { id: goalId },
-                data: {
-                    currentAmount: { increment: input.amount },
-                },
+                data: { currentAmount: String(Number(goalForInc2.currentAmount) + input.amount) },
             });
             if (accountId) {
+                const acc = await tx.account.findUnique({ where: { id: accountId } });
+                const newBal = Number(acc?.balance || 0) - input.amount;
                 await tx.account.update({
                     where: { id: accountId },
-                    data: {
-                        balance: { decrement: input.amount },
-                    },
+                    data: { balance: String(newBal) },
                 });
             }
             return newContribution;
@@ -407,9 +412,11 @@ export class GoalService {
                         date: new Date(),
                     },
                 });
+                const acc = await tx.account.findUnique({ where: { id: targetAccountId } });
+                const newBal = Number(acc?.balance || 0) + refundAmount;
                 await tx.account.update({
                     where: { id: targetAccountId },
-                    data: { balance: { increment: refundAmount } },
+                    data: { balance: String(newBal) },
                 });
             }
             await tx.goalContribution.deleteMany({ where: { goalId } });
@@ -458,9 +465,10 @@ export class GoalService {
             throw new Error('Contribution awal tidak bisa dihapus');
         }
         return prisma.$transaction(async (tx) => {
+            const goalForDec = await tx.goal.findUnique({ where: { id: goalId } });
             await tx.goal.update({
                 where: { id: goalId },
-                data: { currentAmount: { decrement: contribution.amount } },
+                data: { currentAmount: String(Number(goalForDec.currentAmount) - contribution.amount) },
             });
             const updatedGoal = await tx.goal.findUnique({ where: { id: goalId } });
             if (updatedGoal && updatedGoal.status === 'COMPLETED') {
@@ -470,9 +478,11 @@ export class GoalService {
                 });
             }
             if (contribution.accountId) {
+                const acc = await tx.account.findUnique({ where: { id: contribution.accountId } });
+                const newBal = Number(acc?.balance || 0) + Number(contribution.amount);
                 await tx.account.update({
                     where: { id: contribution.accountId },
-                    data: { balance: { increment: contribution.amount } },
+                    data: { balance: String(newBal) },
                 });
             }
             if (contribution.sourceTransactionId) {
@@ -480,9 +490,11 @@ export class GoalService {
                     where: { id: contribution.sourceTransactionId },
                 });
                 if (sourceTx && sourceTx.type === 'EXPENSE') {
+                    const acc2 = await tx.account.findUnique({ where: { id: sourceTx.accountId } });
+                    const newBal2 = Number(acc2?.balance || 0) + Number(sourceTx.amount);
                     await tx.account.update({
                         where: { id: sourceTx.accountId },
-                        data: { balance: { increment: sourceTx.amount } },
+                        data: { balance: String(newBal2) },
                     });
                 }
                 if (sourceTx) {
@@ -495,3 +507,4 @@ export class GoalService {
     }
 }
 export const goalService = new GoalService();
+//# sourceMappingURL=service.js.map

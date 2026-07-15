@@ -18,3 +18,4 @@ export async function subscriptionRoutes(fastify) {
         }
     });
 }
+//# sourceMappingURL=routes.js.map

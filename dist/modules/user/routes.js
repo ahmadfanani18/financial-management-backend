@@ -21,3 +21,4 @@ export async function userRoutes(fastify) {
         },
     }, updateNotificationPreferencesHandler);
 }
+//# sourceMappingURL=routes.js.map

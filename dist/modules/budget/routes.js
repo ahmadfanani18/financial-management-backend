@@ -10,3 +10,4 @@ export async function budgetRoutes(fastify) {
     fastify.put('/:id', {}, updateBudgetHandler);
     fastify.delete('/:id', {}, deleteBudgetHandler);
 }
+//# sourceMappingURL=routes.js.map

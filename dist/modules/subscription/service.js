@@ -59,3 +59,4 @@ export function getFeatures(user) {
         maxGoals: 3,
     };
 }
+//# sourceMappingURL=service.js.map

@@ -72,3 +72,4 @@ export async function adminUsersRoutes(fastify) {
         }
     });
 }
+//# sourceMappingURL=admin-users.routes.js.map

@@ -19,3 +19,4 @@ export async function searchController(fastify) {
         return reply.send(result);
     });
 }
+//# sourceMappingURL=controller.js.map

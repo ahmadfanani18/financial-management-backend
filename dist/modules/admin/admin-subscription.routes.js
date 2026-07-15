@@ -91,3 +91,4 @@ export async function adminSubscriptionRoutes(fastify) {
         }
     });
 }
+//# sourceMappingURL=admin-subscription.routes.js.map

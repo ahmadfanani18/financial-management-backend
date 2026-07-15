@@ -48,3 +48,4 @@ export async function categoryRoutes(fastify) {
         },
     }, deleteCategoryHandler);
 }
+//# sourceMappingURL=routes.js.map

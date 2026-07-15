@@ -72,17 +72,25 @@ export class ReportService {
             categories: Object.values(breakdown).sort((a, b) => b.amount - a.amount),
         };
     }
-    async getTrends(userId, months = 6) {
+    async getTrends(userId, months = 6, accountId) {
         const trends = [];
         const now = new Date();
         for (let i = months - 1; i >= 0; i--) {
             const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
             const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+            const where = {
+                userId,
+                date: { gte: date, lte: endDate },
+            };
+            if (accountId) {
+                where.OR = [
+                    { accountId },
+                    { fromAccountId: accountId },
+                    { toAccountId: accountId },
+                ];
+            }
             const transactions = await prisma.transaction.findMany({
-                where: {
-                    userId,
-                    date: { gte: date, lte: endDate },
-                },
+                where,
             });
             const income = transactions.filter(t => t.type === 'INCOME').reduce((sum, t) => sum + Number(t.amount), 0);
             const expense = transactions.filter(t => t.type === 'EXPENSE').reduce((sum, t) => sum + Number(t.amount), 0);
@@ -135,30 +143,6 @@ export class ReportService {
         });
         if (!account)
             throw new Error('Akun tidak ditemukan');
-        const startDateObj = new Date(params.startDate);
-        const dayBeforeStart = new Date(startDateObj);
-        dayBeforeStart.setDate(dayBeforeStart.getDate() - 1);
-        dayBeforeStart.setHours(23, 59, 59, 999);
-        const prevTransactions = await prisma.transaction.findMany({
-            where: {
-                OR: [
-                    { accountId: params.accountId },
-                    { fromAccountId: params.accountId },
-                    { toAccountId: params.accountId },
-                ],
-                userId,
-                date: { lte: dayBeforeStart },
-            },
-        });
-        let startingBalance = Number(account.balance);
-        for (const t of prevTransactions) {
-            if (t.type === 'INCOME' || (t.type === 'TRANSFER' && t.toAccountId === params.accountId)) {
-                startingBalance -= Number(t.amount);
-            }
-            else if (t.type === 'EXPENSE' || (t.type === 'TRANSFER' && t.fromAccountId === params.accountId)) {
-                startingBalance += Number(t.amount);
-            }
-        }
         const where = {
             OR: [
                 { accountId: params.accountId },
@@ -177,36 +161,59 @@ export class ReportService {
                 skip: (params.page - 1) * params.limit,
                 take: params.limit,
                 orderBy: { date: 'asc' },
-                include: {
-                    category: true,
-                    toAccount: true,
+                select: {
+                    id: true,
+                    date: true,
+                    description: true,
+                    type: true,
+                    amount: true,
+                    adminFee: true,
+                    fromAccountId: true,
+                    toAccountId: true,
+                    category: { select: { name: true } },
+                    toAccount: { select: { name: true } },
                 },
             }),
             prisma.transaction.count({ where }),
         ]);
-        let runningBalance = startingBalance;
         let totalIncome = 0;
         let totalExpense = 0;
         let transferIn = 0;
         let transferOut = 0;
+        for (const t of transactions) {
+            if (t.type === 'INCOME') {
+                totalIncome += Number(t.amount);
+            }
+            else if (t.type === 'EXPENSE') {
+                totalExpense += Number(t.amount);
+            }
+            else if (t.type === 'TRANSFER') {
+                if (t.fromAccountId === params.accountId) {
+                    transferOut += Number(t.amount);
+                }
+                else if (t.toAccountId === params.accountId) {
+                    transferIn += Number(t.amount);
+                }
+            }
+        }
+        const currentBalance = Number(account.balance);
+        const startingBalance = 0;
+        const endingBalance = currentBalance;
+        let runningBalance = startingBalance;
         const transactionsWithBalance = transactions.map(t => {
             let change = 0;
             if (t.type === 'INCOME') {
                 change = Number(t.amount);
-                totalIncome += change;
             }
             else if (t.type === 'EXPENSE') {
                 change = -Number(t.amount);
-                totalExpense += Math.abs(change);
             }
             else if (t.type === 'TRANSFER') {
                 if (t.fromAccountId === params.accountId) {
-                    change = -Number(t.amount);
-                    transferOut += Number(t.amount);
+                    change = -(Number(t.amount) + Number(t.adminFee || 0));
                 }
                 else if (t.toAccountId === params.accountId) {
                     change = Number(t.amount);
-                    transferIn += Number(t.amount);
                 }
             }
             runningBalance += change;
@@ -216,6 +223,7 @@ export class ReportService {
                 description: t.description,
                 type: t.type,
                 amount: Number(t.amount),
+                adminFee: t.adminFee ? Number(t.adminFee) : undefined,
                 category: t.category ? { name: t.category.name } : null,
                 toAccount: t.type === 'TRANSFER' && t.toAccountId !== params.accountId
                     ? { name: t.toAccount?.name || '' }
@@ -270,6 +278,110 @@ export class ReportService {
         });
         return Object.values(grouped).sort((a, b) => b.amount - a.amount);
     }
+    async getInvestmentSummary(userId, accountId) {
+        const holdings = await prisma.holding.findMany({
+            where: {
+                account: { userId, type: 'INVESTMENT', isArchived: false },
+                ...(accountId ? { accountId } : {}),
+            },
+            include: { account: { select: { id: true, name: true } } },
+        });
+        const num = (val) => Number(val?.toString() ?? 0);
+        const totalValue = holdings.reduce((sum, h) => {
+            const shares = num(h.quantity);
+            const currentPrice = num(h.avgBuyPrice);
+            return sum + (shares * currentPrice);
+        }, 0);
+        const totalInvested = holdings.reduce((sum, h) => {
+            const shares = num(h.quantity);
+            const avgPrice = num(h.avgBuyPrice);
+            return sum + (shares * avgPrice);
+        }, 0);
+        const totalPnL = totalValue - totalInvested;
+        const totalPnLPercent = totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0;
+        return {
+            totalValue: Math.round(totalValue),
+            totalPnL: Math.round(totalPnL),
+            totalPnLPercent: Math.round(totalPnLPercent * 100) / 100,
+            holdingsCount: holdings.length,
+            holdings: holdings.map(h => ({
+                id: h.id,
+                symbol: h.symbol,
+                name: h.symbol,
+                shares: num(h.quantity),
+                avgPrice: num(h.avgBuyPrice),
+                currentPrice: num(h.avgBuyPrice),
+                value: Math.round(num(h.quantity) * num(h.avgBuyPrice)),
+                pnl: 0,
+                pnlPercent: 0,
+            })),
+        };
+    }
+    async getInvestmentPerformance(userId, months = 6, accountId) {
+        const performance = [];
+        const now = new Date();
+        for (let i = months - 1; i >= 0; i--) {
+            const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+            const holdings = await prisma.holding.findMany({
+                where: {
+                    account: { userId, type: 'INVESTMENT' },
+                    ...(accountId ? { accountId } : {}),
+                    createdAt: { lte: endDate },
+                },
+            });
+            const value = holdings.reduce((sum, h) => {
+                const shares = Number(h.quantity?.toString() ?? 0);
+                const price = Number(h.avgBuyPrice?.toString() ?? 0);
+                return sum + (shares * price);
+            }, 0);
+            performance.push({
+                month: date.toLocaleDateString('id-ID', { month: 'short' }),
+                value: Math.round(value),
+            });
+        }
+        return { performance };
+    }
+    async getInvestmentTransactions(userId, params) {
+        const where = {
+            account: { userId },
+        };
+        if (params.accountId)
+            where.accountId = params.accountId;
+        if (params.startDate || params.endDate) {
+            where.transactionDate = {};
+            if (params.startDate)
+                where.transactionDate.gte = params.startDate;
+            if (params.endDate)
+                where.transactionDate.lte = params.endDate;
+        }
+        const [transactions, total] = await Promise.all([
+            prisma.investmentTransaction.findMany({
+                where,
+                orderBy: { transactionDate: 'desc' },
+                skip: (params.page - 1) * params.limit,
+                take: params.limit,
+            }),
+            prisma.investmentTransaction.count({ where }),
+        ]);
+        return {
+            transactions: transactions.map(t => ({
+                id: t.id,
+                date: t.transactionDate.toISOString(),
+                type: t.type,
+                symbol: t.symbol,
+                quantity: t.quantity,
+                pricePerShare: Number(t.pricePerShare),
+                brokerFee: Number(t.brokerFee),
+            })),
+            pagination: {
+                page: params.page,
+                limit: params.limit,
+                total,
+                totalPages: Math.ceil(total / params.limit),
+            },
+        };
+    }
     async exportTransactions(userId, year, month) {
         const startDate = new Date(year, month - 1, 1);
         const endDate = new Date(year, month, 0, 23, 59, 59);
@@ -299,3 +411,4 @@ export class ReportService {
     }
 }
 export const reportService = new ReportService();
+//# sourceMappingURL=service.js.map

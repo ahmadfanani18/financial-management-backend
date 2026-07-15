@@ -8,9 +8,17 @@ const APP_PREFIX = {
 export async function createPayment(params) {
     const appPrefix = APP_PREFIX[params.app];
     const orderId = `${appPrefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const pricing = await prisma.pricing.findFirst({
-        where: { app: params.app, period: 'MONTHLY', isActive: true },
-    });
+    let pricing;
+    if (params.pricingId) {
+        pricing = await prisma.pricing.findUnique({
+            where: { id: params.pricingId, isActive: true },
+        });
+    }
+    else {
+        pricing = await prisma.pricing.findFirst({
+            where: { app: params.app, period: 'MONTHLY', isActive: true },
+        });
+    }
     if (!pricing) {
         throw new Error('Pricing not configured. Contact admin.');
     }
@@ -246,3 +254,4 @@ export async function getPaymentByOrderId(orderId) {
 export function getClientKey() {
     return midtransConfig.clientKey;
 }
+//# sourceMappingURL=payment.service.js.map

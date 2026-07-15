@@ -1,5 +1,32 @@
 import { transactionService } from './service.js';
-import { createTransactionSchema, updateTransactionSchema, transactionIdSchema, transactionQuerySchema } from './schemas.js';
+import { createTransactionSchema, updateTransactionSchema, transactionIdSchema, transactionQuerySchema, importConfirmRequestSchema } from './schemas.js';
+export async function getTemplateHandler(request, reply) {
+    const templateData = await transactionService.getTemplateData(request.user.id);
+    const headers = {
+        'Content-Type': 'text/csv',
+        'Content-Disposition': 'attachment; filename="transaction-template.csv"',
+    };
+    const categoryOptions = templateData.categories.map(c => c.name).join('|');
+    const accountOptions = templateData.accounts.map(a => a.name).join('|');
+    const csvContent = `date,description,category,account,amount,type
+2026-01-15,Contoh Income,${categoryOptions.split('|')[0] || ''},${accountOptions.split('|')[0] || ''},15000000,income
+2026-01-14,Contoh Expense,${categoryOptions.split('|')[0] || ''},${accountOptions.split('|')[0] || ''},50000,expense`;
+    return reply.headers(headers).send(csvContent);
+}
+export async function importPreviewHandler(request, reply) {
+    const data = await request.file();
+    if (!data) {
+        return reply.status(400).send({ error: 'File CSV wajib diupload' });
+    }
+    const csvContent = await data.toBuffer().toString('utf-8');
+    const result = await transactionService.parseAndValidateCsv(request.user.id, csvContent);
+    return reply.send(result);
+}
+export async function importConfirmHandler(request, reply) {
+    const { transactions } = importConfirmRequestSchema.parse(request.body);
+    const result = await transactionService.importTransactions(request.user.id, transactions);
+    return reply.send(result);
+}
 export async function getTransactionsHandler(request, reply) {
     const query = transactionQuerySchema.parse(request.query);
     const result = await transactionService.getAll(request.user.id, query);
@@ -45,3 +72,4 @@ export async function getSummaryHandler(request, reply) {
     const summary = await transactionService.getSummary(request.user.id, startDate, endDate);
     return reply.send(summary);
 }
+//# sourceMappingURL=controller.js.map

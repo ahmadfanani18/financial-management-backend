@@ -93,3 +93,4 @@ export async function deleteContributionHandler(request, reply) {
         return reply.status(500).send({ error: 'Gagal menghapus contribution' });
     }
 }
+//# sourceMappingURL=controller.js.map

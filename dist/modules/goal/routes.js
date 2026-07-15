@@ -121,3 +121,4 @@ export async function goalRoutes(fastify) {
         },
     }, deleteContributionHandler);
 }
+//# sourceMappingURL=routes.js.map

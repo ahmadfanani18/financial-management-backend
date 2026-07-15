@@ -29,3 +29,4 @@ export async function getTotalBalanceHandler(request, reply) {
     const total = await accountService.getTotalBalance(request.user.id);
     return reply.send({ total });
 }
+//# sourceMappingURL=controller.js.map

@@ -35,3 +35,4 @@ export const createGoalFromMilestoneSchema = z.object({
     icon: z.string().optional(),
     color: z.string().optional(),
 });
+//# sourceMappingURL=schemas.js.map

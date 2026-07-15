@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import fastifyMultipart from '@fastify/multipart';
 import jwt from '@fastify/jwt';
 import { config } from './config/index.js';
 import { prisma } from './config/prisma.js';
@@ -37,6 +38,12 @@ async function buildApp() {
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
     methods: ['GET', 'PUT', 'POST', 'DELETE', 'PATCH', 'OPTIONS'],
+  });
+
+  await fastify.register(fastifyMultipart, {
+    limits: {
+      fileSize: 5 * 1024 * 1024,
+    },
   });
 
   if (!process.env.VERCEL) {

@@ -26,6 +26,27 @@ function calculateConfidenceScore(transactionCount, timeSpanMonths, lookbackMont
         return 'medium';
     return 'low';
 }
+function getUniqueMonths(transactions) {
+    const uniqueMonths = new Set();
+    transactions.forEach(t => {
+        const d = new Date(t.date);
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        uniqueMonths.add(`${d.getFullYear()}-${month}`);
+    });
+    return uniqueMonths.size;
+}
+function classifyExpenseFrequency(transactions, lookbackMonths) {
+    if (transactions.length === 0) {
+        return 'occasional';
+    }
+    const monthsWithTransactions = getUniqueMonths(transactions);
+    if (monthsWithTransactions < 3) {
+        return 'recurring';
+    }
+    const actualTimeSpan = Math.max(monthsWithTransactions, lookbackMonths);
+    const frequencyRatio = monthsWithTransactions / actualTimeSpan;
+    return frequencyRatio >= 0.5 ? 'recurring' : 'occasional';
+}
 function categorizeByDataPoints(amounts, transactions) {
     const dataPoints = amounts.length;
     if (dataPoints === 0) {
@@ -273,14 +294,22 @@ export class AIService {
             select: { balance: true },
         });
         const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
+        // Get bills for fixed recurring expenses context
+        const bills = await prisma.bill.findMany({
+            where: { userId, isActive: true },
+        });
+        const totalBillsMonthly = bills.reduce((sum, b) => sum + parseFloat(b.amount), 0);
         if (transactions.length === 0) {
             return {
                 predictions: [],
                 totalPredicted: 0,
                 totalBudget: 0,
                 totalSpent: 0,
+                totalBillsMonthly,
                 period: `Bulan ${new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`,
-                message: 'Data transaksi masih kurang dari 3 bulan. Tambahkan lebih banyak transaksi untuk mendapatkan prediksi yang akurat.',
+                message: totalBillsMonthly > 0
+                    ? `Bills tetap Anda: ${totalBillsMonthly.toLocaleString('id-ID')}/bulan. Tapi data transaksi kurang dari 3 bulan.`
+                    : 'Data transaksi masih kurang dari 3 bulan. Tambahkan lebih banyak transaksi untuk mendapatkan prediksi yang akurat.',
                 insufficientData: true,
             };
         }
@@ -303,54 +332,85 @@ export class AIService {
             const timeSpanMonths = calculateTimeSpanMonths(catTransactions);
             const confidenceScore = calculateConfidenceScore(amounts.length, timeSpanMonths, months);
             const result = categorizeByDataPoints(amounts, catTransactions);
+            const expenseType = classifyExpenseFrequency(catTransactions, months);
+            const monthsWithTransactions = getUniqueMonths(catTransactions);
             const avg = amounts.reduce((a, b) => a + b, 0) / amounts.length;
             const budgetLimit = budgetMap[category];
             const isOverBudget = budgetLimit && avg > budgetLimit;
             return {
                 category,
-                predictedAmount: result.predictedAmount,
+                predictedAmount: expenseType === 'occasional' ? 0 : result.predictedAmount,
                 currentAverage: Math.round(avg),
                 budgetLimit: budgetLimit || undefined,
                 isOverBudget,
-                trend: result.trend,
+                trend: expenseType === 'occasional' ? null : result.trend,
                 confidence: confidenceScore,
                 dataPoints: result.dataPoints,
                 calculationMethod: result.calculationMethod,
                 noSpendingRecorded: result.calculationMethod === 'no_spending',
                 trendChange: result.trendChange,
+                expenseType,
+                monthsWithTransactions,
             };
         });
-        const totalPredicted = predictions.reduce((sum, p) => sum + p.predictedAmount, 0);
+        const totalPredicted = predictions
+            .filter(p => p.expenseType === 'recurring')
+            .reduce((sum, p) => sum + p.predictedAmount, 0);
+        const occasionalTotal = predictions
+            .filter(p => p.expenseType === 'occasional')
+            .reduce((sum, p) => sum + p.currentAverage, 0);
         const totalBudget = budgets.reduce((sum, b) => sum + Number(b.amount), 0);
         const totalSpent = transactions.reduce((sum, t) => sum + Number(t.amount), 0);
-        // Generate contextual message
-        let message = `Berdasarkan compilation data spending pattern kamu selama ${months} bulan terakhir, prediksi pengeluaran bulan depan adalah ${totalPredicted.toLocaleString('id-ID')}.`;
-        if (totalBudget > 0) {
-            const budgetUsagePercent = Math.round((totalSpent / totalBudget) * 100);
-            message += ` Penggunaan budget bulan ini: ${budgetUsagePercent}%.`;
+        const actualTimeSpan = calculateTimeSpanMonths(transactions);
+        let message;
+        let insufficientDataMonths = false;
+        if (transactions.length === 0) {
+            message = 'Data transaksi masih kurang dari 3 bulan. Tambahkan lebih banyak transaksi untuk mendapatkan prediksi yang akurat.';
         }
-        if (totalBalance > 0) {
-            message += ` Total saldo akun: ${totalBalance.toLocaleString('id-ID')}.`;
+        else if (actualTimeSpan < 3) {
+            message = `Data kamu masih ${actualTimeSpan} bulan. Prediksi akan lebih akurat setelah 3 bulan penggunaan.`;
+            insufficientDataMonths = true;
+        }
+        else {
+            message = `Prediksi bulan depan ${totalPredicted.toLocaleString('id-ID')} (hanya recurring). Expense jarang-jarang: ${(occasionalTotal || 0).toLocaleString('id-ID')}.`;
+            if (totalBudget > 0) {
+                const budgetUsagePercent = Math.round((totalSpent / totalBudget) * 100);
+                message += ` Penggunaan budget bulan ini: ${budgetUsagePercent}%.`;
+            }
+            if (totalBalance > 0) {
+                message += ` Total saldo akun: ${totalBalance.toLocaleString('id-ID')}.`;
+            }
+            if (totalBillsMonthly > 0) {
+                message += ` Bills tetap: ${totalBillsMonthly.toLocaleString('id-ID')}/bulan.`;
+            }
         }
         return {
             predictions: predictions.sort((a, b) => b.predictedAmount - a.predictedAmount),
             totalPredicted,
+            occasionalTotal,
             totalBudget,
             totalSpent,
+            totalBillsMonthly,
             period: `Bulan ${new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`,
             message,
-            insufficientData: false,
+            insufficientData: transactions.length === 0,
+            insufficientDataMonths,
         };
     }
     async suggestSavings(userId) {
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-        // Get transactions for this month
+        // Get expense and income transactions (exclude TRANSFER, from non-locked accounts only)
         const transactions = await prisma.transaction.findMany({
             where: {
                 userId,
                 date: { gte: startOfMonth, lte: endOfMonth },
+                type: { in: ['EXPENSE', 'INCOME'] },
+                account: {
+                    isLocked: false,
+                    isArchived: false,
+                },
             },
             include: { category: true },
         });
@@ -375,19 +435,25 @@ export class AIService {
             },
             include: { category: true },
         });
+        // Get bills for fixed recurring expenses
+        const bills = await prisma.bill.findMany({
+            where: { userId, isActive: true },
+        });
+        const monthlyBills = bills.reduce((sum, b) => sum + parseFloat(b.amount), 0);
         // Calculate monthly totals
         const income = transactions.filter(t => t.type === 'INCOME').reduce((sum, t) => sum + Number(t.amount), 0);
         const expenses = transactions.filter(t => t.type === 'EXPENSE').reduce((sum, t) => sum + Number(t.amount), 0);
-        const balance = income - expenses;
+        const currentBalance = totalBalance - expenses;
+        const availableFunds = Math.max(0, totalBalance - monthlyBills);
         const suggestions = [];
-        // Suggest based on positive balance
-        if (balance > 0) {
-            const remainingToEmergency = Math.max(0, (income * 6) - totalBalance);
-            if (remainingToEmergency > 0 && remainingToEmergency < balance) {
+        // Suggest based on positive available funds
+        if (availableFunds > 0) {
+            const remainingToEmergency = Math.max(0, (availableFunds * 0.5) - totalBalance);
+            if (remainingToEmergency > 0 && remainingToEmergency < availableFunds * 0.5) {
                 suggestions.push({
                     category: 'Dana Darurat',
                     currentSpending: 0,
-                    suggestedSaving: Math.min(Math.round(balance * 0.5), remainingToEmergency),
+                    suggestedSaving: Math.min(Math.round(availableFunds * 0.25), remainingToEmergency),
                     reason: `Tambahkan ke dana darurat. Sisa yang dibutuhkan: ${remainingToEmergency.toLocaleString('id-ID')}`,
                 });
             }
@@ -395,8 +461,8 @@ export class AIService {
                 suggestions.push({
                     category: 'Tabungan Umum',
                     currentSpending: 0,
-                    suggestedSaving: Math.round(balance * 0.5),
-                    reason: 'Anda memiliki sisa saldo positif bulan ini. Simpan setidaknya 50% untuk masa depan.',
+                    suggestedSaving: Math.round(availableFunds * 0.25),
+                    reason: 'Anda memiliki saldo tersedia. Simpan 25% untuk masa depan.',
                 });
             }
         }
@@ -446,17 +512,17 @@ export class AIService {
                 });
             }
         });
-        // General suggestions based on income
-        if (income > 0 && balance <= 0) {
+        // General suggestions - spending from savings
+        if (totalBalance > 0 && currentBalance < 0) {
             suggestions.push({
-                category: 'Kurangi Defisit',
+                category: 'Spending dari Tabungan',
                 currentSpending: expenses,
-                suggestedSaving: Math.round(income * 0.05),
-                reason: `Pengeluaran melebihi pendapatan. Coba hemat minimal 5% (${Math.round(income * 0.05).toLocaleString('id-ID')}) dari pengeluaran untuk mulai menabung.`,
+                suggestedSaving: Math.round(Math.abs(currentBalance) * 0.1),
+                reason: `Anda spending dari tabungan. Coba hemat 10% dari pengeluaran untuk menjaga saldo.`,
             });
         }
         // Account-based suggestion
-        if (totalBalance > income * 3) {
+        if (totalBalance > 10000000) {
             suggestions.push({
                 category: 'Investasi',
                 currentSpending: 0,
@@ -466,11 +532,12 @@ export class AIService {
         }
         return {
             suggestions: suggestions.slice(0, 5),
-            currentBalance: balance,
+            currentBalance,
             totalAccountBalance: totalBalance,
             activeGoalsCount: goals.length,
             monthlyIncome: income,
-            monthlyExpenseToUses: expenses,
+            monthlyExpenses: expenses,
+            monthlyBills,
             message: suggestions.length > 0
                 ? `Ditemukan ${suggestions.length} saran berdasarkan analisis keuangan Anda bulan ini.`
                 : 'Pertahankan kebiasaan keuangan Anda yang baik!',
@@ -648,8 +715,13 @@ export class SmartSaverService {
             include: { category: true },
         });
         const totalBudgetAmount = budgets.reduce((sum, b) => sum + Number(b.amount), 0);
-        // Calculate available for savings = Income - Budget Commitments
-        const availableForSavings = monthlyIncome - totalBudgetAmount;
+        // Get active bills for fixed commitments
+        const bills = await prisma.bill.findMany({
+            where: { userId, isActive: true },
+        });
+        const totalBills = bills.reduce((sum, b) => sum + parseFloat(b.amount), 0);
+        // Calculate available for savings = Income - Budget Commitments - Bills
+        const availableForSavings = monthlyIncome - totalBudgetAmount - totalBills;
         // Use higher of budget or actual expense, but sanity check
         // If budget is > 5x actual expense, it's probably not realistic
         const monthlyExpenseToUseActual = totalExpense / 3;
@@ -674,12 +746,12 @@ export class SmartSaverService {
         // Generate insight
         let insight;
         if (existingGoalMonthlyContribution > 0) {
-            insight = `Berdasarkan kondisi keuangan Anda (pendapatan Rp ${Math.round(monthlyIncome).toLocaleString('id-ID')}/bulan, budget komitmen Rp ${Math.round(totalBudgetAmount).toLocaleString('id-ID')}/bulan). `;
+            insight = `Berdasarkan kondisi keuangan Anda (pendapatan Rp ${Math.round(monthlyIncome).toLocaleString('id-ID')}/bulan, budget komitmen Rp ${Math.round(totalBudgetAmount).toLocaleString('id-ID')}/bulan, bills tetap Rp ${Math.round(totalBills).toLocaleString('id-ID')}/bulan). `;
             insight += `Sisa yang tersedia untuk ditabung: Rp ${Math.round(remainingForNewGoal).toLocaleString('id-ID')}/bulan. `;
             insight += `Dengan goal aktif lain membutuhkan Rp ${Math.round(existingGoalMonthlyContribution).toLocaleString('id-ID')}/bulan.`;
         }
         else {
-            insight = `Berdasarkan kondisi keuangan Anda (pendapatan Rp ${Math.round(monthlyIncome).toLocaleString('id-ID')}/bulan, budget komitmen Rp ${Math.round(totalBudgetAmount).toLocaleString('id-ID')}/bulan). `;
+            insight = `Berdasarkan kondisi keuangan Anda (pendapatan Rp ${Math.round(monthlyIncome).toLocaleString('id-ID')}/bulan, budget komitmen Rp ${Math.round(totalBudgetAmount).toLocaleString('id-ID')}/bulan, bills tetap Rp ${Math.round(totalBills).toLocaleString('id-ID')}/bulan). `;
             insight += `Sisa yang tersedia untuk ditabung: Rp ${Math.round(availableForSavings).toLocaleString('id-ID')}/bulan.`;
         }
         // If remaining is 0 or negative, use availableForSavings as the base
@@ -791,4 +863,5 @@ export class SmartSaverService {
     }
 }
 export const smartSaverService = new SmartSaverService();
-export { weightedAverage, calculateTimeSpanMonths, calculateConfidenceScore, categorizeByDataPoints };
+export { weightedAverage, calculateTimeSpanMonths, calculateConfidenceScore, categorizeByDataPoints, getUniqueMonths, classifyExpenseFrequency };
+//# sourceMappingURL=service.js.map

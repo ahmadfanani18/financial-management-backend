@@ -1,5 +1,5 @@
 import { authenticate } from '../../middleware/auth.js';
-import { getMonthlyReportHandler, getCategoryBreakdownHandler, getTrendsHandler, getCashFlowHandler, getNetWorthHandler, getMutationsHandler, exportMutationsHandler, exportTransactionsHandler, } from './controller.js';
+import { getMonthlyReportHandler, getCategoryBreakdownHandler, getTrendsHandler, getCashFlowHandler, getNetWorthHandler, getMutationsHandler, exportMutationsHandler, exportTransactionsHandler, getInvestmentSummaryHandler, getInvestmentPerformanceHandler, getInvestmentTransactionsHandler, } from './controller.js';
 export async function reportRoutes(fastify) {
     fastify.addHook('preHandler', authenticate);
     fastify.get('/monthly', {
@@ -91,4 +91,40 @@ export async function reportRoutes(fastify) {
             },
         },
     }, exportTransactionsHandler);
+    fastify.get('/investments/summary', {
+        schema: {
+            querystring: {
+                type: 'object',
+                properties: {
+                    accountId: { type: 'string', format: 'uuid' },
+                },
+            },
+        },
+    }, getInvestmentSummaryHandler);
+    fastify.get('/investments/performance', {
+        schema: {
+            querystring: {
+                type: 'object',
+                properties: {
+                    months: { type: 'number', minimum: 1, maximum: 12, default: 6 },
+                    accountId: { type: 'string', format: 'uuid' },
+                },
+            },
+        },
+    }, getInvestmentPerformanceHandler);
+    fastify.get('/investments/transactions', {
+        schema: {
+            querystring: {
+                type: 'object',
+                properties: {
+                    accountId: { type: 'string', format: 'uuid' },
+                    startDate: { type: 'string' },
+                    endDate: { type: 'string' },
+                    page: { type: 'number', minimum: 1, default: 1 },
+                    limit: { type: 'number', minimum: 1, maximum: 100, default: 50 },
+                },
+            },
+        },
+    }, getInvestmentTransactionsHandler);
 }
+//# sourceMappingURL=routes.js.map

@@ -164,3 +164,4 @@ export async function createSubscription(customerName, customerEmail, cardToken,
     }
     return response.json();
 }
+//# sourceMappingURL=midtrans.js.map

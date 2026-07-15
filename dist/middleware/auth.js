@@ -12,3 +12,4 @@ export async function requireAdmin(request, reply) {
         return reply.status(403).send({ error: 'Admin only' });
     }
 }
+//# sourceMappingURL=auth.js.map

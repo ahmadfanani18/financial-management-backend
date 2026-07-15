@@ -7,10 +7,17 @@ export const adminPricing = {
         return prisma.pricing.findMany({ where: { app: app } });
     },
     async createPricing(data) {
+        const period = data.period || 'MONTHLY';
+        const existing = await prisma.pricing.findUnique({
+            where: { app_period: { app: data.app, period } },
+        });
+        if (existing && existing.isActive) {
+            throw new Error(`${period} pricing for ${data.app} already exists. Please update the existing one instead.`);
+        }
         return prisma.pricing.upsert({
-            where: { app_period: { app: data.app, period: data.period || 'MONTHLY' } },
+            where: { app_period: { app: data.app, period } },
             update: { amount: data.amount, isActive: true },
-            create: { app: data.app, amount: data.amount, period: data.period || 'MONTHLY' },
+            create: { app: data.app, amount: data.amount, period },
         });
     },
     async updatePricing(id, data) {
@@ -50,3 +57,4 @@ export const adminCoupon = {
         return coupon;
     },
 };
+//# sourceMappingURL=admin-pricing.service.js.map

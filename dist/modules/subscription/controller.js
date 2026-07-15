@@ -36,3 +36,4 @@ export async function getPublicPricingHandler(request, reply) {
         return reply.status(500).send({ error: 'Failed to get pricings' });
     }
 }
+//# sourceMappingURL=controller.js.map

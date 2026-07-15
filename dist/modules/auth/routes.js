@@ -1,6 +1,8 @@
-import { registerHandler, loginHandler, meHandler, changePasswordHandler, forgotPasswordHandler, resetPasswordHandler } from './controller.js';
+import { registerHandler, loginHandler, meHandler, changePasswordHandler, forgotPasswordHandler, resetPasswordHandler, verifyEmailHandler, resendVerificationHandler } from './controller.js';
 import { authenticate } from '../../middleware/auth.js';
+import { createRateLimitMiddleware } from '../../middleware/rate-limit.js';
 export async function authRoutes(fastify) {
+    const rateLimit = createRateLimitMiddleware();
     fastify.post('/register', {
         schema: {
             body: {
@@ -18,12 +20,15 @@ export async function authRoutes(fastify) {
                     properties: {
                         user: { type: 'object' },
                         token: { type: 'string' },
+                        verifyUrl: { type: 'string' },
                     },
                 },
             },
         },
     }, registerHandler);
-    fastify.post('/login', loginHandler);
+    fastify.post('/login', {
+        preHandler: [rateLimit],
+    }, loginHandler);
     fastify.get('/me', { preHandler: [authenticate] }, meHandler);
     fastify.put('/change-password', {
         preHandler: [authenticate],
@@ -61,4 +66,27 @@ export async function authRoutes(fastify) {
             },
         },
     }, resetPasswordHandler);
+    fastify.post('/verify-email', {
+        schema: {
+            body: {
+                type: 'object',
+                required: ['token'],
+                properties: {
+                    token: { type: 'string', minLength: 1 },
+                },
+            },
+        },
+    }, verifyEmailHandler);
+    fastify.post('/resend-verification', {
+        schema: {
+            body: {
+                type: 'object',
+                required: ['email'],
+                properties: {
+                    email: { type: 'string', format: 'email' },
+                },
+            },
+        },
+    }, resendVerificationHandler);
 }
+//# sourceMappingURL=routes.js.map

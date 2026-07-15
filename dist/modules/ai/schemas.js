@@ -13,3 +13,4 @@ export const smartSaverCalculateSchema = z.object({
     targetPrice: z.number().positive(),
     monthlyBudget: z.number().positive().optional(),
 });
+//# sourceMappingURL=schemas.js.map

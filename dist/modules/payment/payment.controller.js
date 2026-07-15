@@ -5,7 +5,7 @@ export async function createPayment(request, reply) {
         if (!user?.id) {
             return reply.status(401).send({ error: 'Unauthorized' });
         }
-        const { app, paymentMethod, paymentProvider, paymentType, couponCode, enableAutoRenewal } = request.body;
+        const { app, paymentMethod, paymentProvider, paymentType, couponCode, enableAutoRenewal, pricingId } = request.body;
         if (!app || !paymentMethod || !paymentType) {
             return reply.status(400).send({ error: 'Missing required fields' });
         }
@@ -17,6 +17,7 @@ export async function createPayment(request, reply) {
             paymentType,
             couponCode,
             enableAutoRenewal,
+            pricingId,
         });
         return reply.send(result);
     }
@@ -79,3 +80,4 @@ export async function getPaymentByOrderId(request, reply) {
     }
     return payment;
 }
+//# sourceMappingURL=payment.controller.js.map

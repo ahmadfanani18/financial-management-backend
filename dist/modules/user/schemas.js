@@ -3,3 +3,4 @@ export const updateProfileSchema = z.object({
     name: z.string().min(1).optional(),
     avatar: z.string().url().optional(),
 });
+//# sourceMappingURL=schemas.js.map

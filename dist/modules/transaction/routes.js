@@ -1,5 +1,5 @@
 import { authenticate } from '../../middleware/auth.js';
-import { getTransactionsHandler, getTransactionHandler, createTransactionHandler, updateTransactionHandler, deleteTransactionHandler, getRecentTransactionsHandler, getSummaryHandler, } from './controller.js';
+import { getTransactionsHandler, getTransactionHandler, createTransactionHandler, updateTransactionHandler, deleteTransactionHandler, getRecentTransactionsHandler, getSummaryHandler, getTemplateHandler, importPreviewHandler, importConfirmHandler, } from './controller.js';
 export async function transactionRoutes(fastify) {
     fastify.addHook('preHandler', authenticate);
     fastify.get('/', {
@@ -72,4 +72,8 @@ export async function transactionRoutes(fastify) {
             params: { type: 'object', properties: { id: { type: 'string' } } },
         },
     }, deleteTransactionHandler);
+    fastify.get('/template', getTemplateHandler);
+    fastify.post('/import', importPreviewHandler);
+    fastify.post('/import/confirm', importConfirmHandler);
 }
+//# sourceMappingURL=routes.js.map

@@ -76,3 +76,4 @@ export async function accountRoutes(fastify) {
         },
     }, deleteAccountHandler);
 }
+//# sourceMappingURL=routes.js.map

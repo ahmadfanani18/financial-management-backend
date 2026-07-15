@@ -28,3 +28,4 @@ export const resetPasswordSchema = {
         },
     },
 };
+//# sourceMappingURL=schemas.js.map

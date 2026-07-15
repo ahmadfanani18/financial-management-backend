@@ -1,7 +1,8 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { prisma } from '../../config/prisma.js';
-import { sendPasswordResetEmail } from '../../utils/email.service.js';
+import { config } from '../../config/index.js';
+import { sendPasswordResetEmail, sendVerificationEmail } from '../../utils/email.service.js';
 export class AuthService {
     async register(input) {
         const existing = await prisma.user.findUnique({
@@ -11,6 +12,8 @@ export class AuthService {
             throw new Error('Email already registered');
         }
         const hashedPassword = await bcrypt.hash(input.password, 10);
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+        const hashedToken = crypto.createHash('sha256').update(verificationToken).digest('hex');
         const now = new Date();
         const trialEndsAt = input.trial
             ? new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
@@ -23,6 +26,8 @@ export class AuthService {
                 subscriptionTier: input.trial ? 'TRIAL' : 'FREE',
                 trialStartedAt: input.trial ? now : null,
                 trialEndsAt: trialEndsAt,
+                emailVerifiedAt: null,
+                emailVerificationToken: hashedToken,
             },
             select: {
                 id: true,
@@ -37,7 +42,19 @@ export class AuthService {
                 subscriptionEndAt: true,
             },
         });
-        return user;
+        const verifyUrl = `${config.frontendUrl}/verify-email?token=${verificationToken}`;
+        console.log(`[EMAIL-VERIFICATION-URL] ${verifyUrl}`);
+        try {
+            await sendVerificationEmail({
+                to: user.email,
+                name: user.name,
+                verifyUrl,
+            });
+        }
+        catch (emailError) {
+            console.error('[EMAIL-VERIFICATION-ERROR]', emailError);
+        }
+        return { ...user, verifyUrl };
     }
     async login(input) {
         const user = await prisma.user.findUnique({
@@ -60,6 +77,9 @@ export class AuthService {
         if (!isValid) {
             throw new Error('Invalid credentials');
         }
+        if (!user.emailVerifiedAt) {
+            throw new Error('Email belum diverifikasi. Silakan cek inbox email Anda.');
+        }
         return {
             id: user.id,
             email: user.email,
@@ -67,6 +87,59 @@ export class AuthService {
             avatar: user.avatar,
             role: user.role,
         };
+    }
+    async verifyEmail(token) {
+        const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+        const user = await prisma.user.findFirst({
+            where: {
+                emailVerificationToken: hashedToken,
+            },
+        });
+        if (!user) {
+            throw new Error('Token tidak valid atau sudah kedaluwarsa.');
+        }
+        const tokenAge = Date.now() - user.updatedAt.getTime();
+        const tokenExpiry = 24 * 60 * 60 * 1000;
+        console.log('[VERIFY-EMAIL-DEBUG] Date.now():', Date.now());
+        console.log('[VERIFY-EMAIL-DEBUG] user.updatedAt.getTime():', user.updatedAt.getTime());
+        console.log('[VERIFY-EMAIL-DEBUG] tokenAge (ms):', tokenAge);
+        console.log('[VERIFY-EMAIL-DEBUG] tokenExpiry (ms):', tokenExpiry);
+        console.log('[VERIFY-EMAIL-DEBUG] user.createdAt:', user.createdAt);
+        if (tokenAge > tokenExpiry) {
+            throw new Error('Token tidak valid atau sudah kedaluwarsa.');
+        }
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                emailVerifiedAt: new Date(),
+                emailVerificationToken: null,
+            },
+        });
+        return { message: 'Email berhasil diverifikasi' };
+    }
+    async resendVerification(email) {
+        const user = await prisma.user.findUnique({
+            where: { email },
+        });
+        if (!user) {
+            return { message: 'Link verifikasi sudah dikirim ke email Anda.' };
+        }
+        if (user.emailVerifiedAt) {
+            return { message: 'Link verifikasi sudah dikirim ke email Anda.' };
+        }
+        const newToken = crypto.randomBytes(32).toString('hex');
+        const hashedToken = crypto.createHash('sha256').update(newToken).digest('hex');
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { emailVerificationToken: hashedToken },
+        });
+        const verifyUrl = `${config.frontendUrl}/verify-email?token=${newToken}`;
+        await sendVerificationEmail({
+            to: user.email,
+            name: user.name,
+            verifyUrl,
+        });
+        return { message: 'Link verifikasi sudah dikirim ke email Anda.' };
     }
     async getProfile(userId) {
         const user = await prisma.user.findUnique({
@@ -170,3 +243,4 @@ export class AuthService {
     }
 }
 export const authService = new AuthService();
+//# sourceMappingURL=service.js.map

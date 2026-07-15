@@ -29,3 +29,4 @@ export async function notificationRoutes(fastify) {
         },
     }, deleteNotificationHandler);
 }
+//# sourceMappingURL=routes.js.map

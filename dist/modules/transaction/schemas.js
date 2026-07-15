@@ -18,6 +18,7 @@ export const createTransactionSchema = z.object({
         endDate: z.date().optional(),
     }).optional(),
     tagIds: z.array(z.string()).optional(),
+    deductGoals: z.boolean().default(false),
 });
 export const updateTransactionSchema = createTransactionSchema.partial();
 export const createTransactionSchemaWithFee = createTransactionSchema.refine((data) => {
@@ -42,3 +43,39 @@ export const transactionQuerySchema = z.object({
     maxAmount: z.coerce.number().optional(),
     search: z.string().optional(),
 });
+export const importCsvRowSchema = z.object({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
+    description: z.string().min(1, 'Deskripsi wajib diisi').max(255),
+    category: z.string().min(1, 'Kategori wajib dipilih'),
+    account: z.string().min(1, 'Akun wajib dipilih'),
+    amount: z.number().positive('Jumlah harus positif'),
+});
+export const importPreviewResponseSchema = z.object({
+    validRows: z.array(importCsvRowSchema),
+    errorRows: z.array(z.object({
+        row: z.number(),
+        data: z.record(z.any()),
+        error: z.string(),
+    })),
+    summary: z.object({
+        valid: z.number(),
+        errors: z.number(),
+        total: z.number(),
+    }),
+});
+export const importConfirmRequestSchema = z.object({
+    transactions: z.array(z.object({
+        date: z.string(),
+        description: z.string(),
+        categoryId: z.string(),
+        accountId: z.string(),
+        amount: z.number(),
+        type: z.enum(['INCOME', 'EXPENSE']),
+    })),
+});
+export const importConfirmResponseSchema = z.object({
+    imported: z.number(),
+    failed: z.number(),
+    errors: z.array(z.string()),
+});
+//# sourceMappingURL=schemas.js.map

@@ -1,3 +1,4 @@
+import { prisma } from '../../config/prisma.js';
 import { reportService } from './service.js';
 import { reportQuerySchema, monthlyReportSchema, trendsSchema, mutationsQuerySchema } from './schemas.js';
 import * as XLSX from 'xlsx';
@@ -12,8 +13,8 @@ export async function getCategoryBreakdownHandler(request, reply) {
     return reply.send(breakdown);
 }
 export async function getTrendsHandler(request, reply) {
-    const { months } = trendsSchema.parse(request.query);
-    const trends = await reportService.getTrends(request.user.id, Number(months));
+    const { months, accountId } = trendsSchema.parse(request.query);
+    const trends = await reportService.getTrends(request.user.id, Number(months), accountId);
     return reply.send(trends);
 }
 export async function getCashFlowHandler(request, reply) {
@@ -41,12 +42,13 @@ export async function exportMutationsHandler(request, reply) {
         ['Akun', result.account.name],
         ['Periode', `${new Date(query.startDate).toLocaleDateString('id-ID')} - ${new Date(query.endDate).toLocaleDateString('id-ID')}`],
     ];
-    const headerRow = ['Tanggal', 'Deskripsi', 'Tipe', 'Jumlah', 'Kategori', 'Tujuan', 'Saldo'];
+    const headerRow = ['Tanggal', 'Deskripsi', 'Tipe', 'Jumlah', 'Biaya Admin', 'Kategori', 'Tujuan', 'Saldo'];
     const dataRows = result.transactions.map(t => [
         new Date(t.date).toLocaleDateString('id-ID'),
         t.description || '-',
         t.type,
         t.type === 'INCOME' ? `+${formatCurrency(t.amount)}` : `-${formatCurrency(t.amount)}`,
+        t.adminFee ? formatCurrency(t.adminFee) : '-',
         t.category?.name || '-',
         t.toAccount?.name || '-',
         formatCurrency(t.runningBalance),
@@ -69,7 +71,7 @@ export async function exportMutationsHandler(request, reply) {
     ];
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     const colWidths = [
-        { wch: 12 }, { wch: 30 }, { wch: 10 }, { wch: 18 }, { wch: 15 }, { wch: 15 }, { wch: 18 },
+        { wch: 12 }, { wch: 30 }, { wch: 10 }, { wch: 18 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 18 },
     ];
     ws['!cols'] = colWidths;
     const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
@@ -133,3 +135,43 @@ export async function exportTransactionsHandler(request, reply) {
     reply.header('Content-Disposition', `attachment; filename="transaksi-${year}-${month}.csv"`);
     return reply.send(csv);
 }
+export async function getInvestmentSummaryHandler(request, reply) {
+    const userId = request.user.id;
+    const { accountId } = request.query;
+    if (accountId) {
+        const account = await prisma.account.findFirst({ where: { id: accountId, userId } });
+        if (!account)
+            return reply.status(404).send({ error: 'Akun tidak ditemukan' });
+    }
+    const result = await reportService.getInvestmentSummary(userId, accountId);
+    return reply.send(result);
+}
+export async function getInvestmentPerformanceHandler(request, reply) {
+    const userId = request.user.id;
+    const { months = 6, accountId } = request.query;
+    if (accountId) {
+        const account = await prisma.account.findFirst({ where: { id: accountId, userId } });
+        if (!account)
+            return reply.status(404).send({ error: 'Akun tidak ditemukan' });
+    }
+    const result = await reportService.getInvestmentPerformance(userId, months, accountId);
+    return reply.send(result);
+}
+export async function getInvestmentTransactionsHandler(request, reply) {
+    const userId = request.user.id;
+    const { accountId, startDate, endDate, page = 1, limit = 50 } = request.query;
+    if (accountId) {
+        const account = await prisma.account.findFirst({ where: { id: accountId, userId } });
+        if (!account)
+            return reply.status(404).send({ error: 'Akun tidak ditemukan' });
+    }
+    const result = await reportService.getInvestmentTransactions(userId, {
+        accountId,
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+        page: Number(page),
+        limit: Number(limit),
+    });
+    return reply.send(result);
+}
+//# sourceMappingURL=controller.js.map

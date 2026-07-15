@@ -98,3 +98,4 @@ export class SearchService {
     }
 }
 export const searchService = new SearchService();
+//# sourceMappingURL=service.js.map

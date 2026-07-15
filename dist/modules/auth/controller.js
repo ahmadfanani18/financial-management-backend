@@ -64,3 +64,14 @@ export async function resetPasswordHandler(request, reply) {
     const result = await authService.resetPassword(token, password);
     return reply.send(result);
 }
+export async function verifyEmailHandler(request, reply) {
+    const { token } = request.body;
+    const result = await authService.verifyEmail(token);
+    return reply.send(result);
+}
+export async function resendVerificationHandler(request, reply) {
+    const { email } = request.body;
+    const result = await authService.resendVerification(email);
+    return reply.send(result);
+}
+//# sourceMappingURL=controller.js.map

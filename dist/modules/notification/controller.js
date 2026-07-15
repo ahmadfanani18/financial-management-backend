@@ -26,3 +26,4 @@ export async function deleteNotificationHandler(request, reply) {
     await notificationService.delete(id, request.user.id);
     return reply.status(204).send();
 }
+//# sourceMappingURL=controller.js.map

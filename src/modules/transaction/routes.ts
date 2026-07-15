@@ -8,7 +8,11 @@ import {
   deleteTransactionHandler,
   getRecentTransactionsHandler,
   getSummaryHandler,
+  getTemplateHandler,
+  importPreviewHandler,
+  importConfirmHandler,
 } from './controller.js';
+
 
 export async function transactionRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authenticate);
@@ -89,4 +93,10 @@ export async function transactionRoutes(fastify: FastifyInstance) {
       params: { type: 'object', properties: { id: { type: 'string' } } },
     },
   }, deleteTransactionHandler);
+
+  fastify.get('/template', getTemplateHandler);
+
+  fastify.post('/import', importPreviewHandler);
+
+  fastify.post('/import/confirm', importConfirmHandler);
 }

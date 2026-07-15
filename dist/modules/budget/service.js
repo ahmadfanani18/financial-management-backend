@@ -160,9 +160,6 @@ export class BudgetService {
                     date: { gte: startDate, lte: endDate },
                 },
             });
-            console.log('Budget:', budget.categoryId, 'Category:', budget.category?.name);
-            console.log('Transactions found:', transactions.length, 'IDs:', transactions.map(t => t.id));
-            console.log('Start date:', startDate, 'End date:', endDate);
             const spent = transactions.reduce((sum, t) => sum + Number(t.amount), 0);
             const percentage = Number(budget.amount) > 0 ? (spent / Number(budget.amount)) * 100 : 0;
             return {
@@ -189,3 +186,4 @@ export class BudgetService {
     }
 }
 export const budgetService = new BudgetService();
+//# sourceMappingURL=service.js.map

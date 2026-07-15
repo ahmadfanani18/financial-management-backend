@@ -16,3 +16,4 @@ export async function paymentRoutes(fastify) {
     }, paymentController.getSnapToken);
     fastify.get('/order/:orderId', paymentController.getPaymentByOrderId);
 }
+//# sourceMappingURL=payment.routes.js.map
