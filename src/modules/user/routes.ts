@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../../middleware/auth.js';
 import { getProfileHandler, updateProfileHandler, getNotificationPreferencesHandler, updateNotificationPreferencesHandler } from './controller.js';
+import { saveApiKeysHandler, getApiKeysStatusHandler } from './api-keys-controller.js';
 
 export async function userRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authenticate);
@@ -25,4 +26,20 @@ export async function userRoutes(fastify: FastifyInstance) {
       },
     },
   }, updateNotificationPreferencesHandler);
+
+  fastify.post('/api-keys', {
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          geminiApiKey: { type: 'string' },
+          openaiApiKey: { type: 'string' },
+          claudeApiKey: { type: 'string' },
+          primaryProvider: { type: 'string', enum: ['gemini', 'openai', 'claude'] },
+        },
+      },
+    },
+  }, saveApiKeysHandler);
+
+  fastify.get('/api-keys', getApiKeysStatusHandler);
 }

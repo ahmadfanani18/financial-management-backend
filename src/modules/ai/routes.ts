@@ -10,6 +10,9 @@ import {
   chatHandler,
   quotaHandler,
   clearHistoryHandler,
+  getChatMessagesHandler,
+  getConversationsHandler,
+  deleteConversationHandler,
 } from './controller.js';
 
 export async function aiRoutes(fastify: FastifyInstance) {
@@ -85,4 +88,10 @@ export async function aiRoutes(fastify: FastifyInstance) {
       },
     },
   }, clearHistoryHandler);
+
+  fastify.get<{ Params: { conversationId: string } }>('/chat/:conversationId/messages', getChatMessagesHandler);
+
+  fastify.get('/conversations', getConversationsHandler);
+
+  fastify.delete<{ Params: { conversationId: string } }>('/conversations/:conversationId', deleteConversationHandler);
 }

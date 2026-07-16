@@ -1,5 +1,21 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
+import { randomBytes } from 'crypto';
 import type { AIProvider, AIMessage } from '../modules/ai/providers/index.js';
+import { encrypt, decrypt } from '../modules/ai/crypto.js';
+import { prisma } from '../../config/prisma.js';
+import { getApiKeysStatus } from '../modules/user/api-keys-service.js';
+
+vi.mock('../modules/user/api-keys-service.js', () => ({
+  getApiKeysStatus: vi.fn(),
+}));
+
+vi.mock('../../config/prisma.js', () => ({
+  prisma: {
+    user: {
+      findUnique: vi.fn(),
+    },
+  },
+}));
 
 vi.mock('../modules/ai/providers/claude.js', () => ({
   createClaudeProvider: vi.fn(() => mockProvider('claude')),
@@ -101,5 +117,47 @@ describe('createRouter', () => {
     expect(router.classify('berapa saldo')).toBe('simple');
     expect(router.classify('analisa mendalam')).toBe('complex');
     expect(router.classify('jelaskan soal pajak')).toBe('analysis');
+  });
+});
+
+describe('User API Key Integration', () => {
+  beforeAll(() => {
+    process.env.ENCRYPTION_KEY = randomBytes(32).toString('base64');
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should encrypt and decrypt user API key correctly', () => {
+    const testKey = 'sk-user-test-key-12345';
+    const encrypted = encrypt(testKey);
+    const decrypted = decrypt(encrypted);
+    expect(decrypted).toBe(testKey);
+  });
+
+  it('should detect when user has no API keys configured', async () => {
+    vi.mocked(getApiKeysStatus).mockResolvedValue({
+      hasAnyKey: false,
+      configuredProviders: [],
+      primaryProvider: null,
+    });
+
+    const status = await getApiKeysStatus('user-id');
+    expect(status.hasAnyKey).toBe(false);
+    expect(status.configuredProviders).toEqual([]);
+  });
+
+  it('should detect when user has API keys configured', async () => {
+    vi.mocked(getApiKeysStatus).mockResolvedValue({
+      hasAnyKey: true,
+      configuredProviders: ['gemini'],
+      primaryProvider: 'gemini',
+    });
+
+    const status = await getApiKeysStatus('user-id');
+    expect(status.hasAnyKey).toBe(true);
+    expect(status.configuredProviders).toEqual(['gemini']);
+    expect(status.primaryProvider).toBe('gemini');
   });
 });

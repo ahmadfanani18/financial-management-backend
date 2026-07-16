@@ -164,6 +164,10 @@ model User {
   preferences         Json             @default("{}")
   aiQuotaUsed         Int              @default(0) // Int is sufficient: max ~1000 req/day * 31 days = 31,000, well under 2^31-1
   aiQuotaResetAt      DateTime?
+  geminiApiKey        String?
+  openaiApiKey        String?
+  claudeApiKey        String?
+  aiPrimaryProvider   String?
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
   emailVerifiedAt      DateTime?

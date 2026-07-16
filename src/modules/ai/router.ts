@@ -55,7 +55,7 @@ const DEFAULT_MODELS: Record<string, string> = {
   mock: 'mock',
   claude: 'claude-3-5-sonnet-20241022',
   openai: 'gpt-4o-mini',
-  gemini: 'gemini-2.0-flash',
+  gemini: 'gemini-3.5-flash',
 };
 
 export interface Router {

@@ -23,7 +23,7 @@ export function createGeminiProvider(apiKey?: string): AIProvider {
       messages: AIMessage[],
       options?: AIChatOptions
     ): Promise<AIChatResponse> {
-      const model = options?.model || 'gemini-2.0-flash';
+      const model = options?.model || 'gemini-3.5-flash';
       const maxTokens = options?.maxTokens || 4096;
 
       try {
