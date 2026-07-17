@@ -51,6 +51,28 @@ const FALLBACK_CHAINS: Record<QueryComplexity, string[]> = {
   complex: ['claude', 'openai', 'gemini'],
 };
 
+const MODEL_TO_PROVIDER: Record<string, { provider: string; model: string }> = {
+  'claude-sonnet': { provider: 'claude', model: 'claude-sonnet-4-20250514' },
+  'claude-opus': { provider: 'claude', model: 'claude-opus-4-20250514' },
+  'gpt-4o-mini': { provider: 'openai', model: 'gpt-4o-mini' },
+  'gpt-4o': { provider: 'openai', model: 'gpt-4o' },
+  'gemini-flash': { provider: 'gemini', model: 'gemini-2.0-flash' },
+  'gemini-pro': { provider: 'gemini', model: 'gemini-2.0-pro' },
+};
+
+function selectProviderByModel(model?: string): { provider: string; model: string; isAuto: boolean } | null {
+  if (!model || model === 'auto') {
+    return null;
+  }
+
+  const mapping = MODEL_TO_PROVIDER[model];
+  if (!mapping) {
+    return null;
+  }
+
+  return { ...mapping, isAuto: false };
+}
+
 const DEFAULT_MODELS: Record<string, string> = {
   mock: 'mock',
   claude: 'claude-3-5-sonnet-20241022',
@@ -59,9 +81,11 @@ const DEFAULT_MODELS: Record<string, string> = {
 };
 
 export interface Router {
-  route(messages: AIMessage[], complexity: QueryComplexity): Promise<RouteResult>;
+  route(messages: AIMessage[], complexity: QueryComplexity, model?: string): Promise<RouteResult>;
   classify(message: string): QueryComplexity;
 }
+
+export { selectProviderByModel };
 
 export function createRouter(config: RouterConfig): Router {
   const mockProvider: AIProvider = {
@@ -88,7 +112,33 @@ export function createRouter(config: RouterConfig): Router {
       return classifyQuery(message);
     },
 
-    async route(messages: AIMessage[], complexity: QueryComplexity): Promise<RouteResult> {
+    async route(messages: AIMessage[], complexity: QueryComplexity, model?: string): Promise<RouteResult> {
+      const explicitModel = selectProviderByModel(model);
+      if (explicitModel) {
+        const provider = providers[explicitModel.provider];
+        if (provider) {
+          try {
+            const result = await provider.chat(messages, { model: explicitModel.model });
+            return { ...result, provider: explicitModel.provider };
+          } catch (primaryError) {
+            const FALLBACK_CHAIN = ['openai', 'gemini', 'claude'];
+            for (const fallbackProvider of FALLBACK_CHAIN) {
+              if (fallbackProvider === explicitModel.provider) continue;
+              const fallbackP = providers[fallbackProvider];
+              if (!fallbackP) continue;
+              try {
+                const defaultModel = DEFAULT_MODELS[fallbackProvider];
+                const result = await fallbackP.chat(messages, { model: defaultModel });
+                return { ...result, provider: fallbackProvider };
+              } catch {
+                continue;
+              }
+            }
+            throw primaryError instanceof Error ? primaryError : new Error(String(primaryError));
+          }
+        }
+      }
+
       const chain = FALLBACK_CHAINS[complexity];
       let lastError: Error | null = null;
 

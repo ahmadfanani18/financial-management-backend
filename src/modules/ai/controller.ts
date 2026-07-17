@@ -112,9 +112,10 @@ export async function chatHandler(
 ) {
   try {
     const userId = request.user.id;
-    const { message, conversationId } = request.body as {
+    const { message, conversationId, model } = request.body as {
       message: string;
       conversationId?: string;
+      model?: string;
     };
 
     const quotaCheck = await checkQuota(userId, 2000);
@@ -159,7 +160,7 @@ export async function chatHandler(
       { role: 'user' as const, content: message },
     ];
 
-    const result = await router.route(messages, complexity);
+    const result = await router.route(messages, complexity, model);
 
     await prisma.message.createMany({
       data: [
