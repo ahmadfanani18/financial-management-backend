@@ -3,10 +3,43 @@ import type { CreateBillInput, UpdateBillInput } from './schemas.js';
 
 export class BillService {
   async getAll(userId: string) {
-    return prisma.bill.findMany({
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+    const bills = await prisma.bill.findMany({
       where: { userId },
-      include: { account: true, category: true },
+      include: {
+        account: true,
+        category: true,
+        transactions: {
+          where: { date: { gte: startOfMonth, lte: endOfMonth } },
+          orderBy: { date: 'desc' },
+          take: 1,
+        },
+      },
       orderBy: { createdAt: 'desc' },
+    });
+
+    return bills.map((bill) => {
+      const lastTransaction = bill.transactions[0];
+
+      const dueDateOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), bill.dueDate);
+
+      let status: 'PAID' | 'PENDING' | 'OVERDUE';
+      if (lastTransaction) {
+        status = 'PAID';
+      } else if (now >= dueDateOfCurrentMonth) {
+        status = 'OVERDUE';
+      } else {
+        status = 'PENDING';
+      }
+
+      return {
+        ...bill,
+        status,
+        lastTransaction,
+      };
     });
   }
 
@@ -117,15 +150,97 @@ export class BillService {
     return { bills: billsWithStatus, summary };
   }
 
-  async markAsPaid(id: string, userId: string, amount?: string) {
-    const bill = await this.getById(id, userId);
+  async getSummary(userId: string) {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
+    const bills = await prisma.bill.findMany({
+      where: { userId, isActive: true },
+      include: {
+        transactions: {
+          where: { date: { gte: startOfMonth, lte: endOfMonth } },
+          take: 1,
+        },
+      },
+    });
+
+    const billsWithStatus = bills.map((bill) => {
+      const lastTransaction = bill.transactions[0];
+      const dueDateOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), bill.dueDate);
+
+      let status: 'PAID' | 'PENDING' | 'OVERDUE';
+      if (lastTransaction) {
+        status = 'PAID';
+      } else if (now >= dueDateOfCurrentMonth) {
+        status = 'OVERDUE';
+      } else {
+        status = 'PENDING';
+      }
+
+      return { ...bill, status };
+    });
+
+    return {
+      paid: {
+        count: billsWithStatus.filter((b) => b.status === 'PAID').length,
+        total: billsWithStatus
+          .filter((b) => b.status === 'PAID')
+          .reduce((sum, b) => sum + Number(b.amount), 0)
+          .toString(),
+      },
+      pending: {
+        count: billsWithStatus.filter((b) => b.status === 'PENDING').length,
+        total: billsWithStatus
+          .filter((b) => b.status === 'PENDING')
+          .reduce((sum, b) => sum + Number(b.amount), 0)
+          .toString(),
+      },
+      overdue: {
+        count: billsWithStatus.filter((b) => b.status === 'OVERDUE').length,
+        total: billsWithStatus
+          .filter((b) => b.status === 'OVERDUE')
+          .reduce((sum, b) => sum + Number(b.amount), 0)
+          .toString(),
+      },
+    };
+  }
+
+  async markAsPaid(id: string, userId: string, amount?: string, createTransaction = true) {
+    const bill = await this.getById(id, userId);
     const transactionAmount = amount || bill.amount;
+
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+    const existingTransaction = await prisma.transaction.findFirst({
+      where: {
+        billId: id,
+        date: { gte: startOfMonth, lte: endOfMonth },
+      },
+    });
+
+    if (existingTransaction) {
+      throw new Error('Tagihan sudah memiliki transaksi di bulan ini');
+    }
+
+    if (!createTransaction) {
+      await prisma.bill.update({
+        where: { id },
+        data: { lastExecutedAt: new Date() },
+      });
+      return { success: true, billId: id, transactionCreated: false };
+    }
 
     const account = await prisma.account.findFirst({
       where: { id: bill.accountId, userId },
     });
     if (!account) throw new Error('Akun tidak ditemukan');
+
+    if (Number(account.balance) < Number(transactionAmount)) {
+      throw new Error('Saldo tidak mencukupi');
+    }
 
     const newBalance = (Number(account.balance) - Number(transactionAmount)).toString();
 
@@ -148,7 +263,7 @@ export class BillService {
       }),
     ]);
 
-    return transaction;
+    return { success: true, billId: id, transaction, transactionCreated: true };
   }
 
   async getBillsForExecution(date: number) {
