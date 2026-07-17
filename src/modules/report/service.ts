@@ -169,25 +169,178 @@ export class ReportService {
     });
     if (!account) throw new Error('Akun tidak ditemukan');
 
-    const where: any = {
+    const startDateDay = new Date(params.startDate);
+    startDateDay.setHours(0, 0, 0, 0);
+    const endDateDay = new Date(params.endDate);
+    endDateDay.setHours(23, 59, 59, 999);
+
+    const baseWhere = {
       OR: [
         { accountId: params.accountId },
         { fromAccountId: params.accountId },
         { toAccountId: params.accountId },
       ],
       userId,
-      date: { gte: params.startDate, lte: params.endDate },
     };
-    if (params.search) {
-      where.description = { contains: params.search, mode: 'insensitive' };
+
+    const priorWhere = {
+      ...baseWhere,
+      date: { lt: startDateDay },
+    };
+
+    const rangeWhere = {
+      ...baseWhere,
+      date: { gte: startDateDay, lte: endDateDay },
+    };
+
+    const [priorTransactions, allRangeTransactions, total] = await Promise.all([
+      prisma.transaction.findMany({
+        where: priorWhere,
+        select: { type: true, amount: true, adminFee: true, fromAccountId: true, toAccountId: true },
+      }),
+      prisma.transaction.findMany({
+        where: rangeWhere,
+        orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+        select: {
+          id: true,
+          date: true,
+          description: true,
+          type: true,
+          amount: true,
+          adminFee: true,
+          fromAccountId: true,
+          toAccountId: true,
+          updatedAt: true,
+          category: { select: { name: true } },
+          toAccount: { select: { name: true } },
+        },
+      }),
+      prisma.transaction.count({ where: rangeWhere }),
+    ]);
+
+    let totalIncome = 0;
+    let totalExpense = 0;
+    let transferIn = 0;
+    let transferOut = 0;
+
+    for (const t of allRangeTransactions) {
+      if (t.type === 'INCOME') {
+        totalIncome += Number(t.amount);
+      } else if (t.type === 'EXPENSE') {
+        totalExpense += Number(t.amount) + Number(t.adminFee || 0);
+      } else if (t.type === 'TRANSFER') {
+        if (t.fromAccountId === params.accountId) {
+          transferOut += Number(t.amount);
+        } else if (t.toAccountId === params.accountId) {
+          transferIn += Number(t.amount);
+        }
+      }
     }
 
-    const [transactions, total] = await Promise.all([
+    let transferFee = 0;
+    for (const t of allRangeTransactions) {
+      if (t.type === 'TRANSFER' && t.fromAccountId === params.accountId) {
+        transferFee += Number(t.adminFee || 0);
+      }
+    }
+
+    const totalExpenseWithFees = totalExpense + transferFee;
+    const totalChange = totalIncome - totalExpenseWithFees + (transferIn - transferOut);
+    const currentBalance = Number(account.balance);
+    const endingBalance = currentBalance;
+    const startingBalance = currentBalance - totalChange;
+
+    const transactionBalances = new Map<string, number>();
+    let runningBalance = startingBalance;
+    for (const t of allRangeTransactions) {
+      let change = 0;
+      if (t.type === 'INCOME') {
+        change = Number(t.amount);
+      } else if (t.type === 'EXPENSE') {
+        change = -(Number(t.amount) + Number(t.adminFee || 0));
+      } else if (t.type === 'TRANSFER') {
+        if (t.fromAccountId === params.accountId) {
+          change = -(Number(t.amount) + Number(t.adminFee || 0));
+        } else if (t.toAccountId === params.accountId) {
+          change = Number(t.amount);
+        }
+      }
+      runningBalance += change;
+      transactionBalances.set(t.id, runningBalance);
+    }
+
+    const paginatedTransactions = allRangeTransactions
+      .slice((params.page - 1) * params.limit, params.page * params.limit);
+
+    const transactionsWithBalance = paginatedTransactions.map(t => ({
+      id: t.id,
+      date: t.date.toISOString(),
+      description: t.description,
+      type: t.type,
+      amount: Number(t.amount),
+      adminFee: t.adminFee ? Number(t.adminFee) : undefined,
+      category: t.category ? { name: t.category.name } : null,
+      toAccount: t.type === 'TRANSFER' && t.toAccountId !== params.accountId
+        ? { name: t.toAccount?.name || '' }
+        : null,
+      runningBalance: transactionBalances.get(t.id) ?? startingBalance,
+    }));
+
+    return {
+      account: { id: account.id, name: account.name, type: account.type, currentBalance: Number(account.balance) },
+      startingBalance,
+      endingBalance,
+      totalIncome,
+      totalExpense: totalExpenseWithFees,
+      totalTransfer: transferIn - transferOut,
+      transactions: transactionsWithBalance,
+      pagination: {
+        page: params.page,
+        limit: params.limit,
+        total,
+        totalPages: Math.ceil(total / params.limit),
+      },
+    };
+  }
+
+  async getMutationsForExport(userId: string, params: MutationsQuery) {
+    const account = await prisma.account.findFirst({
+      where: { id: params.accountId, userId },
+    });
+    if (!account) throw new Error('Akun tidak ditemukan');
+
+    const startDateDay = new Date(params.startDate);
+    startDateDay.setHours(0, 0, 0, 0);
+    const endDateDay = new Date(params.endDate);
+    endDateDay.setHours(23, 59, 59, 999);
+
+    const baseWhere = {
+      OR: [
+        { accountId: params.accountId },
+        { fromAccountId: params.accountId },
+        { toAccountId: params.accountId },
+      ],
+      userId,
+    };
+
+    const priorWhere = {
+      ...baseWhere,
+      date: { lt: startDateDay },
+    };
+
+    const rangeWhere = {
+      ...baseWhere,
+      date: { gte: startDateDay, lte: endDateDay },
+    };
+
+    const [priorTransactions, allRangeTransactions] = await Promise.all([
       prisma.transaction.findMany({
-        where,
-        skip: (params.page - 1) * params.limit,
-        take: params.limit,
-        orderBy: { date: 'asc' },
+        where: priorWhere,
+        select: { type: true, amount: true, adminFee: true, fromAccountId: true, toAccountId: true },
+      }),
+      prisma.transaction.findMany({
+        where: rangeWhere,
+        orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
         select: {
           id: true,
           date: true,
@@ -201,7 +354,6 @@ export class ReportService {
           toAccount: { select: { name: true } },
         },
       }),
-      prisma.transaction.count({ where }),
     ]);
 
     let totalIncome = 0;
@@ -209,11 +361,11 @@ export class ReportService {
     let transferIn = 0;
     let transferOut = 0;
 
-    for (const t of transactions) {
+    for (const t of allRangeTransactions) {
       if (t.type === 'INCOME') {
         totalIncome += Number(t.amount);
       } else if (t.type === 'EXPENSE') {
-        totalExpense += Number(t.amount);
+        totalExpense += Number(t.amount) + Number(t.adminFee || 0);
       } else if (t.type === 'TRANSFER') {
         if (t.fromAccountId === params.accountId) {
           transferOut += Number(t.amount);
@@ -223,18 +375,26 @@ export class ReportService {
       }
     }
 
+    let transferFee = 0;
+    for (const t of allRangeTransactions) {
+      if (t.type === 'TRANSFER' && t.fromAccountId === params.accountId) {
+        transferFee += Number(t.adminFee || 0);
+      }
+    }
+
+    const totalTransfer = transferIn - transferOut;
+    const totalExpenseWithFees = totalExpense + transferFee;
     const currentBalance = Number(account.balance);
-    const startingBalance = 0;
     const endingBalance = currentBalance;
+    const startingBalance = currentBalance - (totalIncome - totalExpenseWithFees + totalTransfer);
 
     let runningBalance = startingBalance;
-
-    const transactionsWithBalance = transactions.map(t => {
+    const transactionsWithBalance = allRangeTransactions.map(t => {
       let change = 0;
       if (t.type === 'INCOME') {
         change = Number(t.amount);
       } else if (t.type === 'EXPENSE') {
-        change = -Number(t.amount);
+        change = -(Number(t.amount) + Number(t.adminFee || 0));
       } else if (t.type === 'TRANSFER') {
         if (t.fromAccountId === params.accountId) {
           change = -(Number(t.amount) + Number(t.adminFee || 0));
@@ -260,19 +420,13 @@ export class ReportService {
     });
 
     return {
-      account: { id: account.id, name: account.name, type: account.type, currentBalance: Number(account.balance) },
+      account: { id: account.id, name: account.name, type: account.type, currentBalance },
       startingBalance,
-      endingBalance: runningBalance,
+      endingBalance,
       totalIncome,
-      totalExpense,
-      totalTransfer: transferIn - transferOut,
+      totalExpense: totalExpenseWithFees,
+      totalTransfer,
       transactions: transactionsWithBalance,
-      pagination: {
-        page: params.page,
-        limit: params.limit,
-        total,
-        totalPages: Math.ceil(total / params.limit),
-      },
     };
   }
 

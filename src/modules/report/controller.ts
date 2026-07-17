@@ -62,7 +62,7 @@ export async function exportMutationsHandler(
   reply: FastifyReply
 ) {
   const query = mutationsQuerySchema.parse(request.query);
-  const result = await reportService.getMutations(request.user.id, { ...query, page: 1, limit: 10000 });
+  const result = await reportService.getMutationsForExport(request.user.id, query);
 
   const formatCurrency = (num: number) => {
     return 'Rp ' + num.toLocaleString('id-ID');
@@ -76,6 +76,7 @@ export async function exportMutationsHandler(
   ];
 
   const headerRow = ['Tanggal', 'Deskripsi', 'Tipe', 'Jumlah', 'Biaya Admin', 'Kategori', 'Tujuan', 'Saldo'];
+
   const dataRows = result.transactions.map(t => [
     new Date(t.date).toLocaleDateString('id-ID'),
     t.description || '-',
