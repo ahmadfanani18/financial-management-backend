@@ -46,9 +46,9 @@ export async function deleteBillHandler(request: FastifyRequest<{ Params: { id: 
 
 export async function markAsPaidHandler(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
   const { id } = billIdSchema.parse(request.params);
-  const { amount } = markPaidSchema.parse(request.body || {});
-  const transaction = await billService.markAsPaid(id, request.user.id, amount);
-  return reply.status(201).send({ transaction });
+  const { amount, createTransaction } = markPaidSchema.parse(request.body || {});
+  const result = await billService.markAsPaid(id, request.user.id, amount, createTransaction);
+  return reply.status(201).send(result);
 }
 
 export async function getBillsForExecutionHandler(request: FastifyRequest<{ Params: { date: string } }>, reply: FastifyReply) {
