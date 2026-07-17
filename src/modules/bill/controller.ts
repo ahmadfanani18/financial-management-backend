@@ -12,6 +12,11 @@ export async function getCurrentMonthBillsHandler(request: FastifyRequest, reply
   return reply.send(result);
 }
 
+export async function getSummaryHandler(request: FastifyRequest, reply: FastifyReply) {
+  const summary = await billService.getSummary(request.user.id);
+  return reply.send(summary);
+}
+
 export async function getBillHandler(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
   const { id } = billIdSchema.parse(request.params);
   const bill = await billService.getById(id, request.user.id);

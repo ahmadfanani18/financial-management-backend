@@ -21,6 +21,7 @@ export const updateBillAmountSchema = z.object({
 
 export const markPaidSchema = z.object({
   amount: z.string().optional(),
+  createTransaction: z.boolean().optional().default(true),
 });
 
 export const billIdSchema = z.object({

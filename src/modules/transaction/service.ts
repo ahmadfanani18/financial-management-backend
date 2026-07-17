@@ -956,7 +956,7 @@ export class TransactionService {
           });
         }
       }
-    });
+    }, { timeout: 30000 });
 
     return { imported: imported.length, failed: failed.length, errors: failed };
   }

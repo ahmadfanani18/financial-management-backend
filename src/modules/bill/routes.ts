@@ -10,6 +10,7 @@ import {
   deleteBillHandler,
   markAsPaidHandler,
   getBillsForExecutionHandler,
+  getSummaryHandler,
 } from './controller.js';
 
 export async function billRoutes(fastify: FastifyInstance) {
@@ -17,6 +18,7 @@ export async function billRoutes(fastify: FastifyInstance) {
 
   fastify.get('/', {}, getBillsHandler);
   fastify.get('/current-month', {}, getCurrentMonthBillsHandler);
+  fastify.get('/summary', {}, getSummaryHandler);
   fastify.get('/:id', {}, getBillHandler);
   fastify.post('/', {}, createBillHandler);
   fastify.put('/:id', {}, updateBillHandler);
