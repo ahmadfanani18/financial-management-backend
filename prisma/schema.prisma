@@ -383,6 +383,7 @@ model Bill {
   description    String?
   isActive       Boolean       @default(true)
   lastExecutedAt DateTime?
+  lastPaidAt     DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 

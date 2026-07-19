@@ -25,9 +25,12 @@ export class BillService {
       const lastTransaction = bill.transactions[0];
 
       const dueDateOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), bill.dueDate);
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      const lastPaidThisMonth = bill.lastPaidAt && bill.lastPaidAt >= startOfMonth && bill.lastPaidAt <= endOfMonth;
 
       let status: 'PAID' | 'PENDING' | 'OVERDUE';
-      if (lastTransaction) {
+      if (lastTransaction || lastPaidThisMonth) {
         status = 'PAID';
       } else if (now >= dueDateOfCurrentMonth) {
         status = 'OVERDUE';
@@ -106,9 +109,12 @@ export class BillService {
       const lastTransaction = bill.transactions[0];
       const today = now.getDate();
       const dueDate = bill.dueDate;
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      const lastPaidThisMonth = bill.lastPaidAt && bill.lastPaidAt >= startOfMonth && bill.lastPaidAt <= endOfMonth;
 
       let status: 'PAID' | 'PENDING' | 'OVERDUE';
-      if (lastTransaction) {
+      if (lastTransaction || lastPaidThisMonth) {
         status = 'PAID';
       } else if (dueDate >= today) {
         status = 'PENDING';
@@ -147,7 +153,7 @@ export class BillService {
       },
     };
 
-    return { bills: billsWithStatus, summary };
+    return { summary };
   }
 
   async getSummary(userId: string) {
@@ -228,7 +234,7 @@ export class BillService {
     if (!createTransaction) {
       await prisma.bill.update({
         where: { id },
-        data: { lastExecutedAt: new Date() },
+        data: { lastExecutedAt: new Date(), lastPaidAt: new Date() },
       });
       return { success: true, billId: id, transactionCreated: false };
     }

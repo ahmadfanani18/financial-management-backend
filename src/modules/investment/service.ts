@@ -118,7 +118,7 @@ const shares = Number(holding.quantity);
         data: {
           accountId: input.accountId,
           symbol: input.symbol,
-          shares: sharesInLembar.toString(),
+          quantity: sharesInLembar.toString(),
           avgBuyPrice: input.avgBuyPrice,
         },
       }),
@@ -173,7 +173,7 @@ const shares = Number(holding.quantity);
       prisma.holding.update({
         where: { id },
         data: {
-          shares: newSharesInLembar.toString(),
+          quantity: newSharesInLembar.toString(),
           avgBuyPrice: newAvgBuyPrice.toString(),
         },
       }),
@@ -288,7 +288,7 @@ const shares = Number(holding.quantity);
       await tx.holding.update({
         where: { id: holdingId },
         data: {
-          shares: sharesRemaining.toString(),
+          quantity: sharesRemaining.toString(),
           realizedPnL: newRealizedPnL.toString(),
         },
       });
