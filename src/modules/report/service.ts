@@ -1,4 +1,5 @@
 import { prisma } from '../../config/prisma.js';
+import { marketPriceService } from '../market-price/service.js';
 import type { ReportQuery, MonthlyReportInput, TrendsInput, MutationsQuery } from './schemas.js';
 import Papa from 'papaparse';
 
@@ -478,19 +479,40 @@ export class ReportService {
       include: { account: { select: { id: true, name: true } } },
     });
 
+    const symbols = holdings.map((h) => h.symbol);
+    const marketPrices = await marketPriceService.getBySymbols(symbols);
+    const priceMap = new Map(marketPrices.map((p) => [p.symbol, p]));
+
     const num = (val: any) => Number(val?.toString() ?? 0);
 
-    const totalValue = holdings.reduce((sum, h) => {
-      const shares = num(h.quantity);
-      const currentPrice = num(h.avgBuyPrice);
-      return sum + (shares * currentPrice);
-    }, 0);
+    let totalValue = 0;
+    let totalInvested = 0;
 
-    const totalInvested = holdings.reduce((sum, h) => {
+    const holdingsWithPnL = holdings.map((h) => {
       const shares = num(h.quantity);
       const avgPrice = num(h.avgBuyPrice);
-      return sum + (shares * avgPrice);
-    }, 0);
+      const marketPrice = priceMap.get(h.symbol);
+      const currentPrice = marketPrice ? Number(marketPrice.price) : avgPrice;
+      const value = shares * currentPrice;
+      const invested = shares * avgPrice;
+      const pnl = value - invested;
+      const pnlPercent = invested > 0 ? (pnl / invested) * 100 : 0;
+
+      totalValue += value;
+      totalInvested += invested;
+
+      return {
+        id: h.id,
+        symbol: h.symbol,
+        name: marketPrice?.name || h.symbol,
+        shares,
+        avgPrice,
+        currentPrice,
+        value: Math.round(value),
+        pnl: Math.round(pnl),
+        pnlPercent: Math.round(pnlPercent * 100) / 100,
+      };
+    });
 
     const totalPnL = totalValue - totalInvested;
     const totalPnLPercent = totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0;
@@ -500,17 +522,7 @@ export class ReportService {
       totalPnL: Math.round(totalPnL),
       totalPnLPercent: Math.round(totalPnLPercent * 100) / 100,
       holdingsCount: holdings.length,
-      holdings: holdings.map(h => ({
-        id: h.id,
-        symbol: h.symbol,
-        name: h.symbol,
-        shares: num(h.quantity),
-        avgPrice: num(h.avgBuyPrice),
-        currentPrice: num(h.avgBuyPrice),
-        value: Math.round(num(h.quantity) * num(h.avgBuyPrice)),
-        pnl: 0,
-        pnlPercent: 0,
-      })),
+      holdings: holdingsWithPnL,
     };
   }
 

@@ -59,6 +59,7 @@ const shares = Number(holding.quantity);
       0
     );
     const totalPnL = holdingsWithPnL.reduce((sum, h) => sum + Number(h.pnl), 0);
+    const totalPnLPercent = totalHoldingsValue > 0 ? (totalPnL / (totalHoldingsValue - totalPnL)) * 100 : 0;
     const totalPortfolioValue = Number(account.balance) + totalHoldingsValue;
 
     return {
@@ -73,6 +74,8 @@ const shares = Number(holding.quantity);
       totalHoldingsValue: totalHoldingsValue.toString(),
       totalPortfolioValue: totalPortfolioValue.toString(),
       totalPnL: totalPnL.toString(),
+      totalPnLPercent: Math.round(totalPnLPercent * 100) / 100,
+      holdingsCount: holdings.length,
     };
   }
 
