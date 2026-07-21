@@ -80,6 +80,19 @@ const DEFAULT_MODELS: Record<string, string> = {
   gemini: 'gemini-3.5-flash',
 };
 
+const MODEL_MAX_TOKENS: Record<string, number> = {
+  'claude-3-5-sonnet-20241022': 8192,
+  'claude-sonnet-4-20250514': 8192,
+  'claude-opus-4-20250514': 8192,
+  'gpt-4o-mini': 65536,
+  'gpt-4o': 16384,
+  'gemini-3.5-flash': 8192,
+  'gemini-2.0-flash': 8192,
+  'gemini-2.0-pro': 8192,
+  'gemini-flash': 8192,
+  'gemini-pro': 8192,
+};
+
 export interface Router {
   route(messages: AIMessage[], complexity: QueryComplexity, model?: string): Promise<RouteResult>;
   classify(message: string): QueryComplexity;
@@ -118,7 +131,8 @@ export function createRouter(config: RouterConfig): Router {
         const provider = providers[explicitModel.provider];
         if (provider) {
           try {
-            const result = await provider.chat(messages, { model: explicitModel.model });
+            const maxTokens = MODEL_MAX_TOKENS[explicitModel.model] || 8192;
+            const result = await provider.chat(messages, { model: explicitModel.model, maxTokens });
             return { ...result, provider: explicitModel.provider };
           } catch (primaryError) {
             const FALLBACK_CHAIN = ['openai', 'gemini', 'claude'];
@@ -128,7 +142,8 @@ export function createRouter(config: RouterConfig): Router {
               if (!fallbackP) continue;
               try {
                 const defaultModel = DEFAULT_MODELS[fallbackProvider];
-                const result = await fallbackP.chat(messages, { model: defaultModel });
+                const maxTokens = MODEL_MAX_TOKENS[defaultModel] || 8192;
+                const result = await fallbackP.chat(messages, { model: defaultModel, maxTokens });
                 return { ...result, provider: fallbackProvider };
               } catch {
                 continue;
@@ -147,8 +162,11 @@ export function createRouter(config: RouterConfig): Router {
         if (!provider) continue;
 
         try {
+          const model = DEFAULT_MODELS[providerName];
+          const maxTokens = MODEL_MAX_TOKENS[model] || 8192;
           const result = await provider.chat(messages, {
-            model: DEFAULT_MODELS[providerName],
+            model,
+            maxTokens,
           });
 
           return {
