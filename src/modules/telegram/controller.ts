@@ -971,6 +971,18 @@ Gunakan menu di bawah atau ketik perintah:
           },
         });
 
+        // Update balances for transfer
+        const fromBalance = Number(fromAccount.balance || 0) - Number(state.amount);
+        const toBalance = Number(toAccount.balance || 0) + Number(state.amount);
+        await prisma.account.update({
+          where: { id: state.accountId },
+          data: { balance: String(fromBalance) },
+        });
+        await prisma.account.update({
+          where: { id: state.toAccountId },
+          data: { balance: String(toBalance) },
+        });
+
         await this.bot.sendMessage(chatId, `✅ *Transfer berhasil!*\n\n` +
           `📤 Dari: ${fromAccount.name}\n` +
           `📥 Ke: ${toAccount.name}\n` +
@@ -981,7 +993,7 @@ Gunakan menu di bawah atau ketik perintah:
         return;
       }
 
-      const transaction = await prisma.transaction.create({
+      await prisma.transaction.create({
         data: {
           userId: state.userId,
           accountId: state.accountId!,
@@ -992,6 +1004,20 @@ Gunakan menu di bawah atau ketik perintah:
           date: state.date || new Date(),
         },
       });
+
+      // Update account balance
+      const account = await prisma.account.findUnique({
+        where: { id: state.accountId },
+      });
+
+      if (account) {
+        const adjustment = state.type === 'INCOME' ? Number(state.amount) : -Number(state.amount);
+        const newBalance = Number(account.balance || 0) + adjustment;
+        await prisma.account.update({
+          where: { id: state.accountId },
+          data: { balance: String(newBalance) },
+        });
+      }
 
       await this.bot.sendMessage(chatId, `✅ *Transaksi berhasil disimpan!*\n\n` +
         `💰 Jumlah: Rp ${state.amount?.toLocaleString('id-ID')}\n` +
