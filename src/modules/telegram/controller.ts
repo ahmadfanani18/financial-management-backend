@@ -891,9 +891,7 @@ const chatId = msg.chat.id;
       state.date = parsed.start;
       state.step = 'description';
 
-      await this.bot.sendMessage(chatId, '📝 Masukkan deskripsi (opsional):\nAtau ketik "-" untuk kosong:', {
-        reply_markup: { force_reply: true },
-      });
+      await this.bot.sendMessage(chatId, '📝 Masukkan deskripsi (opsional):\nAtau ketik "-" untuk kosong:');
       return;
     }
 
