@@ -674,6 +674,7 @@ Gunakan menu di bawah atau ketik perintah:
     const chatId = msg.chat.id;
     console.log('[TELEGRAM] onVerifyCode called', { chatId, code });
 
+    console.log('[TELEGRAM] Finding verification code...');
     const verification = await prisma.verificationCode.findFirst({
       where: {
         code,
@@ -684,15 +685,18 @@ Gunakan menu di bawah atau ketik perintah:
     });
 
     if (!verification) {
+      console.log('[TELEGRAM] Verification not found');
       await this.bot.sendMessage(chatId, '❌ Kode tidak valid atau sudah expired. Buka aplikasi untuk generate kode baru.');
       return;
     }
 
+    console.log('[TELEGRAM] Verification found, updating...');
     await prisma.verificationCode.update({
       where: { id: verification.id },
       data: { usedAt: new Date() },
     });
 
+    console.log('[TELEGRAM] Creating/updating telegram settings...');
     await prisma.telegramSettings.upsert({
       where: { userId: verification.userId },
       create: {
@@ -706,9 +710,11 @@ Gunakan menu di bawah atau ketik perintah:
       },
     });
 
+    console.log('[TELEGRAM] Sending success message...');
     await this.bot.sendMessage(chatId, '✅ Akun berhasil terhubung! Ketik /menu untuk melihat menu utama.', {
       reply_markup: backToMenuKeyboard(),
     });
+    console.log('[TELEGRAM] Success message sent');
   }
 
   private async handleTransactionCallback(query: CallbackQuery): Promise<void> {
