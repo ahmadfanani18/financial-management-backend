@@ -75,7 +75,6 @@ export class TelegramController {
     this.bot.onText(/\/summary/, (msg) => this.onSummary(msg));
     this.bot.onText(/\/unlink/, (msg) => this.onUnlink(msg));
     this.bot.onText(/\/add/, (msg) => this.onAddTransaction(msg));
-    this.bot.onText(/\/clear/, (msg) => this.onClear(msg));
 
     this.bot.on('callback_query', (query) => this.onCallbackQuery(query));
 
@@ -96,8 +95,7 @@ const chatId = msg.chat.id;
     /budget - Lihat budget
     /ask [pertanyaan] - Tanya AI
     /summary - Ringkasan mingguan
-    /unlink - Putuskan koneksi Telegram
-    /clear - Batalkan proses yang sedang berjalan`;
+    /unlink - Putuskan koneksi Telegram`;
 
     await this.bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
   }
@@ -330,12 +328,6 @@ const chatId = msg.chat.id;
     await this.bot.sendMessage(chatId, '⚠️ Apakah Anda yakin ingin memutuskan koneksi Telegram?', {
       reply_markup: confirmUnlinkKeyboard(),
     });
-  }
-
-  private async onClear(msg: Message): Promise<void> {
-    const chatId = msg.chat.id;
-    this.userStates.delete(chatId);
-    await this.bot.sendMessage(chatId, '🔄 Proses yang sedang berjalan dibatalkan.\n\nGunakan /menu untuk melihat menu utama.');
   }
 
   private async onAddTransaction(msg: Message): Promise<void> {
