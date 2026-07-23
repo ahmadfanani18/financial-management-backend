@@ -15,6 +15,7 @@ export function mainMenuKeyboard(): InlineKeyboardMarkup {
       [{ text: '💰 Saldo', callback_data: 'menu:saldo' }],
       [{ text: '📊 Mutasi', callback_data: 'menu:mutasi' }],
       [{ text: '💳 Transaksi', callback_data: 'menu:transaksi' }],
+      [{ text: '➕ Add Transaksi', callback_data: 'menu:add' }],
       [{ text: '🎯 Goals', callback_data: 'menu:goals' }],
       [{ text: '📋 Budget', callback_data: 'menu:budget' }],
       [{ text: '📝 Tanya AI', callback_data: 'menu:ask' }],
@@ -175,5 +176,37 @@ export function timeSelectionKeyboard(currentTime: string): InlineKeyboardMarkup
   
   rows.push([{ text: '◀️ Kembali', callback_data: 'settings:notifications' }]);
   
+  return { inline_keyboard: rows };
+}
+
+export function transactionTypeKeyboard(): InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [{ text: '💰 Income', callback_data: 'txn:type:INCOME' }],
+      [{ text: '💸 Expense', callback_data: 'txn:type:EXPENSE' }],
+      [{ text: '🔄 Transfer', callback_data: 'txn:type:TRANSFER' }],
+      [{ text: '◀️ Batal', callback_data: 'txn:cancel' }],
+    ],
+  };
+}
+
+export function transactionConfirmKeyboard(): InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [{ text: '✅ Simpan', callback_data: 'txn:confirm' }],
+      [{ text: '❌ Batal', callback_data: 'txn:cancel' }],
+    ],
+  };
+}
+
+export function categorySelectionKeyboard(categories: Array<{ id: string; name: string; icon?: string }>): InlineKeyboardMarkup {
+  const rows: Array<Array<{ text: string; callback_data: string }>> = [];
+  
+  for (const cat of categories) {
+    const icon = cat.icon || '📁';
+    rows.push([{ text: `${icon} ${cat.name}`, callback_data: `txn:cat:${cat.id}` }]);
+  }
+  
+  rows.push([{ text: '◀️ Batal', callback_data: 'txn:cancel' }]);
   return { inline_keyboard: rows };
 }

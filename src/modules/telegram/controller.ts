@@ -11,6 +11,9 @@ import {
   notificationSettingsKeyboard,
   daySelectionKeyboard,
   timeSelectionKeyboard,
+  transactionTypeKeyboard,
+  transactionConfirmKeyboard,
+  categorySelectionKeyboard,
 } from './lib/keyboard.js';
 import {
   formatCurrency,
@@ -36,6 +39,18 @@ function decryptAmount(value: string | number): number {
   return parseFloat(value) || 0;
 }
 
+interface TransactionState {
+  step: 'account' | 'amount' | 'type' | 'toAccount' | 'category' | 'date' | 'description' | 'confirm';
+  userId: string;
+  accountId?: string;
+  amount?: number;
+  type?: 'INCOME' | 'EXPENSE' | 'TRANSFER';
+  toAccountId?: string;
+  categoryId?: string;
+  date?: Date;
+  description?: string;
+}
+
 export class TelegramController {
   private bot: TelegramBot;
   private userStates: Map<number, { step: string; data?: Record<string, unknown> }> = new Map();
@@ -59,6 +74,7 @@ export class TelegramController {
     this.bot.onText(/\/ask (.+)/, (msg, match) => this.onAsk(msg, match?.[1]));
     this.bot.onText(/\/summary/, (msg) => this.onSummary(msg));
     this.bot.onText(/\/unlink/, (msg) => this.onUnlink(msg));
+    this.bot.onText(/\/add/, (msg) => this.onAddTransaction(msg));
 
     this.bot.on('callback_query', (query) => this.onCallbackQuery(query));
 
@@ -314,6 +330,32 @@ Gunakan menu di bawah atau ketik perintah:
     });
   }
 
+  private async onAddTransaction(msg: Message): Promise<void> {
+    const chatId = msg.chat.id;
+
+    const settings = await prisma.telegramSettings.findUnique({
+      where: { telegramChatId: String(chatId) },
+      include: { user: { include: { accounts: { where: { isArchived: false } } } } },
+    });
+
+    if (!settings?.isLinked) {
+      await this.bot.sendMessage(chatId, '🔗 Akun belum terhubung. Hubungkan melalui aplikasi web.');
+      return;
+    }
+
+    if (settings.user.accounts.length === 0) {
+      await this.bot.sendMessage(chatId, '❌ Anda belum punya akun. Buat akun di aplikasi web terlebih dahulu.');
+      return;
+    }
+
+    await this.bot.sendMessage(chatId, '🏦 *Add Transaksi*\n\nPilih akun:', {
+      parse_mode: 'Markdown',
+      reply_markup: accountSelectionKeyboard(settings.user.accounts),
+    });
+
+    this.userStates.set(chatId, { step: 'account', userId: settings.userId } as TransactionState);
+  }
+
   private async onCallbackQuery(query: CallbackQuery): Promise<void> {
     const chatId = query.message?.chat.id;
     const data = query.data;
@@ -348,6 +390,8 @@ Gunakan menu di bawah atau ketik perintah:
       await this.onBudget(query.message!);
     } else if (data === 'menu:ask') {
       await this.bot.sendMessage(chatId, '🤖 Ketik /ask [pertanyaan] untuk bertanya ke AI.\n\nContoh: /ask berapa pengeluaran saya bulan ini?');
+    } else if (data === 'menu:add') {
+      await this.onAddTransaction(query.message!);
     } else if (data === 'menu:summary') {
       await this.onSummary(query.message!);
     } else if (data === 'menu:settings' || data === 'settings:show') {
@@ -542,6 +586,13 @@ Gunakan menu di bawah atau ketik perintah:
           }),
         });
       }
+    } else if (data.startsWith('txn:')) {
+      await this.handleTransactionCallback(query);
+    } else if (data.startsWith('account:')) {
+      const state = this.userStates.get(chatId) as TransactionState | undefined;
+      if (state?.step === 'account' || state?.step === 'toAccount') {
+        await this.handleTransactionCallback(query);
+      }
     }
   }
 
@@ -551,8 +602,15 @@ Gunakan menu di bawah atau ketik perintah:
 
     if (!text || msg.entities?.some(e => e.type === 'bot_command')) return;
 
-    // Check if waiting for time input
     const state = this.userStates.get(chatId);
+
+    // Check transaction state first
+    if (state?.step && ['amount', 'type', 'category', 'date', 'description', 'confirm'].includes(state.step)) {
+      await this.handleTransactionInput(msg, state as TransactionState, text);
+      return;
+    }
+
+    // Check if waiting for time input
     if (state?.step === 'waiting_summary_time') {
       this.userStates.delete(chatId);
       await this.handleSummaryTimeInput(msg, text);
@@ -649,6 +707,289 @@ Gunakan menu di bawah atau ketik perintah:
     await this.bot.sendMessage(chatId, '✅ Akun berhasil terhubung! Ketik /menu untuk melihat menu utama.', {
       reply_markup: backToMenuKeyboard(),
     });
+  }
+
+  private async handleTransactionCallback(query: CallbackQuery): Promise<void> {
+    const chatId = query.message?.chat.id;
+    const data = query.data;
+
+    if (!chatId || !data) return;
+
+    const state = this.userStates.get(chatId) as TransactionState | undefined;
+    if (!state) {
+      await this.bot.sendMessage(chatId, '❌ Sesi expired. Ketik /add untuk memulai lagi.');
+      return;
+    }
+
+    if (data === 'txn:cancel') {
+      this.userStates.delete(chatId);
+      await this.bot.sendMessage(chatId, '❌ Transaksi dibatalkan.');
+      return;
+    }
+
+    if (data.startsWith('account:') && state.step === 'account') {
+      const accountId = data.replace('account:', '');
+      state.accountId = accountId;
+      state.step = 'amount';
+
+      await this.bot.sendMessage(chatId, '💰 Masukkan jumlah (tanpa titik/koma):\n\nContoh: 50000', {
+        parse_mode: 'Markdown',
+      });
+      return;
+    }
+
+    if (data.startsWith('account:') && state.step === 'toAccount') {
+      const toAccountId = data.replace('account:', '');
+      state.toAccountId = toAccountId;
+      state.step = 'category';
+
+      const categories = await prisma.category.findMany({
+        where: { userId: state.userId },
+        orderBy: { name: 'asc' },
+      });
+
+      if (categories.length === 0) {
+        await this.bot.sendMessage(chatId, '❌ Kategori tidak ditemukan. Buat kategori di aplikasi web.');
+        this.userStates.delete(chatId);
+        return;
+      }
+
+      await this.bot.sendMessage(chatId, '📁 *Pilih Kategori:*', {
+        parse_mode: 'Markdown',
+        reply_markup: categorySelectionKeyboard(categories),
+      });
+      return;
+    }
+
+    if (data.startsWith('txn:type:')) {
+      const type = data.replace('txn:type:', '') as 'INCOME' | 'EXPENSE' | 'TRANSFER';
+      state.type = type;
+
+      if (type === 'TRANSFER') {
+        state.step = 'toAccount';
+        const accounts = await prisma.account.findMany({
+          where: { userId: state.userId, isArchived: false, id: { not: state.accountId } },
+        });
+
+        if (accounts.length === 0) {
+          await this.bot.sendMessage(chatId, '❌ Tidak ada akun tujuan. Buat akun lain di aplikasi web.');
+          this.userStates.delete(chatId);
+          return;
+        }
+
+        await this.bot.sendMessage(chatId, '📤 *Pilih Akun Tujuan:*', {
+          parse_mode: 'Markdown',
+          reply_markup: accountSelectionKeyboard(accounts),
+        });
+        return;
+      }
+
+      state.step = 'category';
+      const categories = await prisma.category.findMany({
+        where: { userId: state.userId },
+        orderBy: { name: 'asc' },
+      });
+
+      if (categories.length === 0) {
+        await this.bot.sendMessage(chatId, '❌ Kategori tidak ditemukan. Buat kategori di aplikasi web.');
+        this.userStates.delete(chatId);
+        return;
+      }
+
+      await this.bot.sendMessage(chatId, '📁 *Pilih Kategori:*', {
+        parse_mode: 'Markdown',
+        reply_markup: categorySelectionKeyboard(categories),
+      });
+      return;
+    }
+
+    if (data.startsWith('txn:toAccount:')) {
+      const toAccountId = data.replace('txn:toAccount:', '');
+      state.toAccountId = toAccountId;
+      state.step = 'category';
+
+      const categories = await prisma.category.findMany({
+        where: { userId: state.userId },
+        orderBy: { name: 'asc' },
+      });
+
+      if (categories.length === 0) {
+        await this.bot.sendMessage(chatId, '❌ Kategori tidak ditemukan. Buat kategori di aplikasi web.');
+        this.userStates.delete(chatId);
+        return;
+      }
+
+      await this.bot.sendMessage(chatId, '📁 *Pilih Kategori:*', {
+        parse_mode: 'Markdown',
+        reply_markup: categorySelectionKeyboard(categories),
+      });
+      return;
+    }
+
+    if (data.startsWith('txn:cat:')) {
+      const categoryId = data.replace('txn:cat:', '');
+      state.categoryId = categoryId;
+      state.step = 'date';
+
+      await this.bot.sendMessage(chatId, '📅 Masukkan tanggal (format: DD-MM-YYYY)\nAtau ketik "hari ini":', {
+        reply_markup: { force_reply: true },
+      });
+      return;
+    }
+
+    if (data === 'txn:confirm') {
+      await this.createTransaction(chatId, state);
+      this.userStates.delete(chatId);
+      return;
+    }
+  }
+
+  private async handleTransactionInput(msg: Message, state: TransactionState, text: string): Promise<void> {
+    const chatId = msg.chat.id;
+
+    if (state.step === 'amount') {
+      const amount = parseInt(text.replace(/[^0-9]/g, ''));
+      if (isNaN(amount) || amount <= 0) {
+        await this.bot.sendMessage(chatId, '❌ Jumlah tidak valid. Masukkan angka positif.\n\nContoh: 50000');
+        return;
+      }
+      state.amount = amount;
+      state.step = 'type';
+
+      await this.bot.sendMessage(chatId, '📝 *Pilih jenis transaksi:*', {
+        parse_mode: 'Markdown',
+        reply_markup: transactionTypeKeyboard(),
+      });
+      return;
+    }
+
+    if (state.step === 'date') {
+      const parsed = parseDate(text);
+      if (!parsed) {
+        await this.bot.sendMessage(chatId, '❌ Format tanggal tidak valid.\n\nContoh: 23-07-2026 atau "hari ini"');
+        return;
+      }
+      state.date = parsed.start;
+      state.step = 'description';
+
+      await this.bot.sendMessage(chatId, '📝 Masukkan deskripsi (opsional):\nAtau ketik "-" untuk kosong:', {
+        reply_markup: { force_reply: true },
+      });
+      return;
+    }
+
+    if (state.step === 'description') {
+      state.description = text === '-' ? undefined : text;
+      state.step = 'confirm';
+
+      await this.showTransactionConfirmation(chatId, state);
+      return;
+    }
+  }
+
+  private async showTransactionConfirmation(chatId: number, state: TransactionState): Promise<void> {
+    const category = await prisma.category.findUnique({
+      where: { id: state.categoryId },
+    });
+
+    const fromAccount = await prisma.account.findUnique({
+      where: { id: state.accountId },
+    });
+
+    const toAccount = state.toAccountId
+      ? await prisma.account.findUnique({ where: { id: state.toAccountId } })
+      : null;
+
+    const typeEmoji = state.type === 'INCOME' ? '💰' : state.type === 'EXPENSE' ? '💸' : '🔄';
+
+    let accountInfo = `🏦 Akun: ${fromAccount?.name || '-'}`;
+    if (state.type === 'TRANSFER' && toAccount) {
+      accountInfo += ` → ${toAccount.name}`;
+    }
+
+    const message = `${typeEmoji} *Konfirmasi Transaksi*\n\n` +
+      `${accountInfo}\n` +
+      `💰 Jumlah: Rp ${state.amount?.toLocaleString('id-ID')}\n` +
+      `📁 Kategori: ${category?.name || '-'}\n` +
+      `📅 Tanggal: ${state.date?.toLocaleDateString('id-ID')}\n` +
+      `📝 Deskripsi: ${state.description || '-'}\n\n` +
+      `Yakin ingin menyimpan?`;
+
+    await this.bot.sendMessage(chatId, message, {
+      parse_mode: 'Markdown',
+      reply_markup: transactionConfirmKeyboard(),
+    });
+  }
+
+  private async createTransaction(chatId: number, state: TransactionState): Promise<void> {
+    try {
+      if (state.type === 'TRANSFER' && state.toAccountId) {
+        const [fromAccount, toAccount] = await Promise.all([
+          prisma.account.findUnique({ where: { id: state.accountId } }),
+          prisma.account.findUnique({ where: { id: state.toAccountId } }),
+        ]);
+
+        if (!fromAccount || !toAccount) {
+          await this.bot.sendMessage(chatId, '❌ Akun tidak ditemukan.');
+          return;
+        }
+
+        await prisma.transaction.create({
+          data: {
+            userId: state.userId,
+            accountId: state.accountId,
+            categoryId: state.categoryId,
+            type: 'EXPENSE',
+            amount: String(state.amount),
+            description: state.description || `Transfer ke ${toAccount.name}`,
+            date: state.date || new Date(),
+          },
+        });
+
+        await prisma.transaction.create({
+          data: {
+            userId: state.userId,
+            accountId: state.toAccountId,
+            categoryId: state.categoryId,
+            type: 'INCOME',
+            amount: String(state.amount),
+            description: state.description || `Transfer dari ${fromAccount.name}`,
+            date: state.date || new Date(),
+          },
+        });
+
+        await this.bot.sendMessage(chatId, `✅ *Transfer berhasil!*\n\n` +
+          `📤 Dari: ${fromAccount.name}\n` +
+          `📥 Ke: ${toAccount.name}\n` +
+          `💰 Jumlah: Rp ${state.amount?.toLocaleString('id-ID')}\n` +
+          `📅 Tanggal: ${(state.date || new Date()).toLocaleDateString('id-ID')}`, {
+          parse_mode: 'Markdown',
+        });
+        return;
+      }
+
+      const transaction = await prisma.transaction.create({
+        data: {
+          userId: state.userId,
+          accountId: state.accountId!,
+          categoryId: state.categoryId,
+          type: state.type!,
+          amount: String(state.amount),
+          description: state.description,
+          date: state.date || new Date(),
+        },
+      });
+
+      await this.bot.sendMessage(chatId, `✅ *Transaksi berhasil disimpan!*\n\n` +
+        `💰 Jumlah: Rp ${state.amount?.toLocaleString('id-ID')}\n` +
+        `📁 Kategori: ${state.type}\n` +
+        `📅 Tanggal: ${(state.date || new Date()).toLocaleDateString('id-ID')}`, {
+        parse_mode: 'Markdown',
+      });
+    } catch (error) {
+      console.error('Create transaction error:', error);
+      await this.bot.sendMessage(chatId, '❌ Terjadi kesalahan saat menyimpan transaksi. Silakan coba lagi.');
+    }
   }
 
   getBotInstance(): TelegramBot {
