@@ -75,6 +75,7 @@ export class TelegramController {
     this.bot.onText(/\/summary/, (msg) => this.onSummary(msg));
     this.bot.onText(/\/unlink/, (msg) => this.onUnlink(msg));
     this.bot.onText(/\/add/, (msg) => this.onAddTransaction(msg));
+    this.bot.onText(/\/clear/, (msg) => this.onClear(msg));
 
     this.bot.on('callback_query', (query) => this.onCallbackQuery(query));
 
@@ -82,20 +83,21 @@ export class TelegramController {
   }
 
   private async onStart(msg: Message): Promise<void> {
-    const chatId = msg.chat.id;
+const chatId = msg.chat.id;
     const text = `👋 Selamat datang di Financial Management Bot!
 
-Gunakan menu di bawah atau ketik perintah:
-/menu - Tampilkan menu utama
-/help - Bantuan
-/saldo - Lihat saldo akun
-/mutasi - Lihat mutasi
-/transaksi - Lihat transaksi
-/goals - Lihat goals
-/budget - Lihat budget
-/ask [pertanyaan] - Tanya AI
-/summary - Ringkasan mingguan
-/unlink - Putuskan koneksi Telegram`;
+    Gunakan menu di bawah atau ketik perintah:
+    /menu - Tampilkan menu utama
+    /help - Bantuan
+    /saldo - Lihat saldo akun
+    /mutasi - Lihat mutasi
+    /transaksi - Lihat transaksi
+    /goals - Lihat goals
+    /budget - Lihat budget
+    /ask [pertanyaan] - Tanya AI
+    /summary - Ringkasan mingguan
+    /unlink - Putuskan koneksi Telegram
+    /clear - Batalkan proses yang sedang berjalan`;
 
     await this.bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
   }
@@ -328,6 +330,12 @@ Gunakan menu di bawah atau ketik perintah:
     await this.bot.sendMessage(chatId, '⚠️ Apakah Anda yakin ingin memutuskan koneksi Telegram?', {
       reply_markup: confirmUnlinkKeyboard(),
     });
+  }
+
+  private async onClear(msg: Message): Promise<void> {
+    const chatId = msg.chat.id;
+    this.userStates.delete(chatId);
+    await this.bot.sendMessage(chatId, '🔄 Proses yang sedang berjalan dibatalkan.\n\nGunakan /menu untuk melihat menu utama.');
   }
 
   private async onAddTransaction(msg: Message): Promise<void> {
@@ -607,7 +615,7 @@ Gunakan menu di bawah atau ketik perintah:
     const state = this.userStates.get(chatId);
 
     // Check transaction state first
-    if (state?.step && ['amount', 'type', 'category', 'date', 'description', 'confirm'].includes(state.step)) {
+    if (state?.step && ['account', 'amount', 'type', 'toAccount', 'category', 'date', 'description', 'confirm'].includes(state.step)) {
       await this.handleTransactionInput(msg, state as TransactionState, text);
       return;
     }
@@ -798,8 +806,18 @@ Gunakan menu di bawah atau ketik perintah:
       }
 
       state.step = 'category';
+      
+      // For TRANSFER, skip category selection
+      if (state.type === 'TRANSFER') {
+        state.step = 'date';
+        await this.bot.sendMessage(chatId, '📅 Masukkan tanggal (format: DD-MM-YYYY)\nAtau ketik "hari ini":', {
+          reply_markup: { force_reply: true },
+        });
+        return;
+      }
+
       const categories = await prisma.category.findMany({
-        where: { userId: state.userId },
+        where: { userId: state.userId, type: state.type },
         orderBy: { name: 'asc' },
       });
 
@@ -819,22 +837,10 @@ Gunakan menu di bawah atau ketik perintah:
     if (data.startsWith('txn:toAccount:')) {
       const toAccountId = data.replace('txn:toAccount:', '');
       state.toAccountId = toAccountId;
-      state.step = 'category';
+      state.step = 'date';
 
-      const categories = await prisma.category.findMany({
-        where: { userId: state.userId },
-        orderBy: { name: 'asc' },
-      });
-
-      if (categories.length === 0) {
-        await this.bot.sendMessage(chatId, '❌ Kategori tidak ditemukan. Buat kategori di aplikasi web.');
-        this.userStates.delete(chatId);
-        return;
-      }
-
-      await this.bot.sendMessage(chatId, '📁 *Pilih Kategori:*', {
-        parse_mode: 'Markdown',
-        reply_markup: categorySelectionKeyboard(categories),
+      await this.bot.sendMessage(chatId, '📅 Masukkan tanggal (format: DD-MM-YYYY)\nAtau ketik "hari ini":', {
+        reply_markup: { force_reply: true },
       });
       return;
     }
