@@ -32,6 +32,10 @@ export async function telegramRoutes(fastify: FastifyInstance): Promise<void> {
     }
   });
 
+  fastify.get('/webhook', async (request, reply) => {
+    return reply.send({ ok: true, message: 'Telegram webhook endpoint' });
+  });
+
   fastify.post('/link-code', { preHandler: authenticate }, async (request, reply) => {
     const userId = request.user.id;
 
