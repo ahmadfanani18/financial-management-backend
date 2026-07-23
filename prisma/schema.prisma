@@ -188,6 +188,35 @@ model User {
   conversations       Conversation[]
   feedback            Feedback[]
   bills               Bill[]
+  telegramSettings    TelegramSettings?
+  verificationCodes   VerificationCode[]
+}
+
+model TelegramSettings {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  telegramChatId  String?  @unique
+  isLinked        Boolean  @default(false)
+  notifications   Json     @default("{\"budgetAlert\": true, \"goalProgress\": true, \"weeklySummary\": true, \"weeklySummaryDay\": 0, \"weeklySummaryTime\": \"09:00\", \"billsDue\": true}")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([telegramChatId])
+}
+
+model VerificationCode {
+  id        String   @id @default(uuid())
+  code      String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([code])
+  @@index([userId, expiresAt])
 }
 
 model MarketPrice {

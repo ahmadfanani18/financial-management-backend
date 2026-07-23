@@ -25,6 +25,8 @@ import { paymentRoutes } from './modules/payment/index.js';
 import { adminRoutes, adminUsersRoutes, adminSubscriptionRoutes } from './modules/admin/index.js';
 import { adminReportRoutes } from './modules/admin-report/routes.js';
 import { feedbackRoutes } from './modules/feedback/routes.js';
+import { telegramRoutes } from './modules/telegram/routes.js';
+import { registerTelegram } from './modules/telegram/index.js';
 import { startMarketSyncJob } from './jobs/market-sync.js';
 import { startBillProcessorJob } from './jobs/bill-processor.js';
 
@@ -114,6 +116,9 @@ async function buildApp() {
   await fastify.register(adminUsersRoutes, { prefix: '/api/admin' });
   await fastify.register(adminSubscriptionRoutes, { prefix: '/api/admin' });
   await fastify.register(adminReportRoutes, { prefix: '/api/admin/reports' });
+  await fastify.register(telegramRoutes, { prefix: '/api/telegram' });
+
+  await registerTelegram(fastify);
 
   fastify.addHook('onClose', async () => {
     await prisma.$disconnect();

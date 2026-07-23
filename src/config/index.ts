@@ -23,4 +23,7 @@ export const config = {
     serverKey: process.env.MIDTRANS_SERVER_KEY || '',
     isProduction: process.env.NODE_ENV === 'production',
   },
+  telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || '',
+  telegramMode: process.env.TELEGRAM_MODE || 'polling',
+  telegramWebhookUrl: process.env.TELEGRAM_WEBHOOK_URL || '',
 };
