@@ -711,10 +711,14 @@ Gunakan menu di bawah atau ketik perintah:
     });
 
     console.log('[TELEGRAM] Sending success message...');
-    await this.bot.sendMessage(chatId, '✅ Akun berhasil terhubung! Ketik /menu untuk melihat menu utama.', {
-      reply_markup: backToMenuKeyboard(),
-    });
-    console.log('[TELEGRAM] Success message sent');
+    try {
+      await this.bot.sendMessage(chatId, '✅ Akun berhasil terhubung! Ketik /menu untuk melihat menu utama.', {
+        reply_markup: backToMenuKeyboard(),
+      });
+      console.log('[TELEGRAM] Success message sent');
+    } catch (sendError) {
+      console.error('[TELEGRAM] Send message error:', sendError);
+    }
   }
 
   private async handleTransactionCallback(query: CallbackQuery): Promise<void> {

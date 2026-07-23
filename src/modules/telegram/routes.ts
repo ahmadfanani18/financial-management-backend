@@ -25,8 +25,8 @@ export async function telegramRoutes(fastify: FastifyInstance): Promise<void> {
 
     try {
       await bot.processUpdate(request.body as never);
-      // Wait a bit for handlers to complete in serverless
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait for handlers to complete in serverless environment
+      await new Promise(resolve => setTimeout(resolve, 1000));
       return reply.send({ ok: true });
     } catch (error) {
       console.error('Webhook processing error:', error);
