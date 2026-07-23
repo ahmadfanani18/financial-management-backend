@@ -1,6 +1,7 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { config } from '../../config/index.js';
 import type { FastifyInstance } from 'fastify';
+import { startNotificationScheduler } from './notifications/scheduler.js';
 
 let botInstance: TelegramBot | null = null;
 
@@ -32,6 +33,8 @@ export async function registerTelegram(app: FastifyInstance): Promise<void> {
 
   const { TelegramController } = await import('./controller.js');
   const telegramController = new TelegramController(botInstance);
+
+  startNotificationScheduler();
 
   console.log(`Telegram bot started in ${mode} mode`);
 }

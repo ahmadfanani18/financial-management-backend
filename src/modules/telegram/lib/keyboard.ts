@@ -91,6 +91,8 @@ export function settingsKeyboard(isLinked: boolean): InlineKeyboardMarkup {
   return { inline_keyboard: rows };
 }
 
+const DAYS = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+
 export function notificationSettingsKeyboard(settings: NotificationSettings): InlineKeyboardMarkup {
   return {
     inline_keyboard: [
@@ -114,6 +116,18 @@ export function notificationSettingsKeyboard(settings: NotificationSettings): In
       ],
       [
         {
+          text: `📅 Hari: ${DAYS[settings.weeklySummaryDay] || 'Min'}`,
+          callback_data: 'notif:summaryDay',
+        },
+      ],
+      [
+        {
+          text: `🕐 Waktu: ${settings.weeklySummaryTime || '09:00'}`,
+          callback_data: 'notif:summaryTime',
+        },
+      ],
+      [
+        {
           text: `Bills Due: ${settings.billsDue ? '🔔' : '🔕'}`,
           callback_data: 'notif:billsDue',
         },
@@ -121,4 +135,45 @@ export function notificationSettingsKeyboard(settings: NotificationSettings): In
       [{ text: '◀️ Kembali', callback_data: 'settings:show' }],
     ],
   };
+}
+
+export function daySelectionKeyboard(currentDay: number): InlineKeyboardMarkup {
+  const rows: Array<Array<{ text: string; callback_data: string }>> = [];
+  
+  for (let i = 0; i < DAYS.length; i += 3) {
+    const row: Array<{ text: string; callback_data: string }> = [];
+    for (let j = i; j < Math.min(i + 3, DAYS.length); j++) {
+      const emoji = j === currentDay ? '✅' : '';
+      row.push({
+        text: `${emoji} ${DAYS[j]}`,
+        callback_data: `notif:day_${j}`,
+      });
+    }
+    rows.push(row);
+  }
+  
+  rows.push([{ text: '◀️ Kembali', callback_data: 'settings:notifications' }]);
+  
+  return { inline_keyboard: rows };
+}
+
+export function timeSelectionKeyboard(currentTime: string): InlineKeyboardMarkup {
+  const times = ['06:00', '07:00', '08:00', '09:00', '10:00', '12:00', '18:00', '20:00'];
+  const rows: Array<Array<{ text: string; callback_data: string }>> = [];
+  
+  for (let i = 0; i < times.length; i += 4) {
+    const row: Array<{ text: string; callback_data: string }> = [];
+    for (let j = i; j < Math.min(i + 4, times.length); j++) {
+      const emoji = times[j] === currentTime ? '✅' : '';
+      row.push({
+        text: `${emoji} ${times[j]}`,
+        callback_data: `notif:time_${times[j]}`,
+      });
+    }
+    rows.push(row);
+  }
+  
+  rows.push([{ text: '◀️ Kembali', callback_data: 'settings:notifications' }]);
+  
+  return { inline_keyboard: rows };
 }

@@ -9,6 +9,8 @@ import {
   backToMenuKeyboard,
   settingsKeyboard,
   notificationSettingsKeyboard,
+  daySelectionKeyboard,
+  timeSelectionKeyboard,
 } from './lib/keyboard.js';
 import {
   formatCurrency,
@@ -443,8 +445,83 @@ Gunakan menu di bawah atau ketik perintah:
         where: { telegramChatId: String(chatId) },
       });
 
-      if (settings) {
-        const notif = settings.notifications as Record<string, unknown>;
+      if (!settings) return;
+
+      const notif = settings.notifications as Record<string, unknown>;
+
+      // Handle day selection
+      if (notifType === 'summaryDay') {
+        await this.bot.editMessageText('📅 *Pilih Hari*\n\nPilih hari untuk mengirim weekly summary:', {
+          chat_id: chatId,
+          message_id: query.message?.message_id,
+          parse_mode: 'Markdown',
+          reply_markup: daySelectionKeyboard(Number(notif.weeklySummaryDay) || 0),
+        });
+        return;
+      }
+
+      // Handle time selection - ask for custom input
+      if (notifType === 'summaryTime') {
+        await this.bot.editMessageText('🕐 *Set Waktu*\n\nKirim waktu baru dengan format HH:MM\nContoh: 14:30', {
+          chat_id: chatId,
+          message_id: query.message?.message_id,
+          parse_mode: 'Markdown',
+        });
+        // Store state that we're waiting for time input
+        this.userStates.set(chatId, { step: 'waiting_summary_time' });
+        return;
+      }
+
+      // Handle day_X - set day
+      if (notifType.startsWith('day_')) {
+        const day = parseInt(notifType.replace('day_', ''));
+        notif.weeklySummaryDay = day;
+        await prisma.telegramSettings.update({
+          where: { id: settings.id },
+          data: { notifications: notif as object },
+        });
+        await this.bot.editMessageText('🔔 *Pengaturan Notifikasi*', {
+          chat_id: chatId,
+          message_id: query.message?.message_id,
+          parse_mode: 'Markdown',
+          reply_markup: notificationSettingsKeyboard({
+            budgetAlert: Boolean(notif.budgetAlert),
+            goalProgress: Boolean(notif.goalProgress),
+            weeklySummary: Boolean(notif.weeklySummary),
+            weeklySummaryDay: Number(notif.weeklySummaryDay),
+            weeklySummaryTime: String(notif.weeklySummaryTime),
+            billsDue: Boolean(notif.billsDue),
+          }),
+        });
+        return;
+      }
+
+      // Handle time_XX:XX - set time
+      if (notifType.startsWith('time_')) {
+        const time = notifType.replace('time_', '');
+        notif.weeklySummaryTime = time;
+        await prisma.telegramSettings.update({
+          where: { id: settings.id },
+          data: { notifications: notif as object },
+        });
+        await this.bot.editMessageText('🔔 *Pengaturan Notifikasi*', {
+          chat_id: chatId,
+          message_id: query.message?.message_id,
+          parse_mode: 'Markdown',
+          reply_markup: notificationSettingsKeyboard({
+            budgetAlert: Boolean(notif.budgetAlert),
+            goalProgress: Boolean(notif.goalProgress),
+            weeklySummary: Boolean(notif.weeklySummary),
+            weeklySummaryDay: Number(notif.weeklySummaryDay),
+            weeklySummaryTime: String(notif.weeklySummaryTime),
+            billsDue: Boolean(notif.billsDue),
+          }),
+        });
+        return;
+      }
+
+      // Toggle existing notifications
+      if (['budgetAlert', 'goalProgress', 'weeklySummary', 'billsDue'].includes(notifType)) {
         notif[notifType] = !notif[notifType];
         await prisma.telegramSettings.update({
           where: { id: settings.id },
@@ -474,9 +551,64 @@ Gunakan menu di bawah atau ketik perintah:
 
     if (!text || msg.entities?.some(e => e.type === 'bot_command')) return;
 
+    // Check if waiting for time input
+    const state = this.userStates.get(chatId);
+    if (state?.step === 'waiting_summary_time') {
+      this.userStates.delete(chatId);
+      await this.handleSummaryTimeInput(msg, text);
+      return;
+    }
+
     if (/^\d{6}$/.test(text)) {
       await this.onVerifyCode(msg, text);
     }
+  }
+
+  private async handleSummaryTimeInput(msg: Message, input: string): Promise<void> {
+    const chatId = msg.chat.id;
+    const timeMatch = input.match(/^(\d{1,2}):(\d{2})$/);
+
+    if (!timeMatch) {
+      await this.bot.sendMessage(chatId, '❌ Format tidak valid. Gunakan format HH:MM\nContoh: 14:30');
+      return;
+    }
+
+    const hours = parseInt(timeMatch[1]);
+    const minutes = parseInt(timeMatch[2]);
+
+    if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+      await this.bot.sendMessage(chatId, '❌ Waktu tidak valid. Jam 0-23, Menit 00-59');
+      return;
+    }
+
+    const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+
+    const settings = await prisma.telegramSettings.findUnique({
+      where: { telegramChatId: String(chatId) },
+    });
+
+    if (!settings) {
+      await this.bot.sendMessage(chatId, '❌ Terjadi kesalahan. Silakan coba lagi.');
+      return;
+    }
+
+    const notif = settings.notifications as Record<string, unknown>;
+    notif.weeklySummaryTime = timeStr;
+    await prisma.telegramSettings.update({
+      where: { id: settings.id },
+      data: { notifications: notif as object },
+    });
+
+    await this.bot.sendMessage(chatId, `✅ Waktu berhasil diset ke ${timeStr}`, {
+      reply_markup: notificationSettingsKeyboard({
+        budgetAlert: Boolean(notif.budgetAlert),
+        goalProgress: Boolean(notif.goalProgress),
+        weeklySummary: Boolean(notif.weeklySummary),
+        weeklySummaryDay: Number(notif.weeklySummaryDay),
+        weeklySummaryTime: String(notif.weeklySummaryTime),
+        billsDue: Boolean(notif.billsDue),
+      }),
+    });
   }
 
   private async onVerifyCode(msg: Message, code: string): Promise<void> {
