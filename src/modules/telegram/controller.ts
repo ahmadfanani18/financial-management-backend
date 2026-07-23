@@ -599,6 +599,7 @@ Gunakan menu di bawah atau ketik perintah:
   private async onMessage(msg: Message): Promise<void> {
     const chatId = msg.chat.id;
     const text = msg.text?.trim();
+    console.log('[TELEGRAM] onMessage', { chatId, text, isCommand: msg.entities?.some(e => e.type === 'bot_command') });
 
     if (!text || msg.entities?.some(e => e.type === 'bot_command')) return;
 
@@ -671,6 +672,7 @@ Gunakan menu di bawah atau ketik perintah:
 
   private async onVerifyCode(msg: Message, code: string): Promise<void> {
     const chatId = msg.chat.id;
+    console.log('[TELEGRAM] onVerifyCode called', { chatId, code });
 
     const verification = await prisma.verificationCode.findFirst({
       where: {
