@@ -3,6 +3,7 @@ import { z } from 'zod';
 import crypto from 'crypto';
 import { prisma } from '../../config/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { getBot } from './index.js';
 
 const linkCodeSchema = z.object({
   code: z.string().min(6).max(6),
@@ -10,7 +11,25 @@ const linkCodeSchema = z.object({
 
 export async function telegramRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post('/webhook', async (request, reply) => {
-    return reply.send({ ok: true });
+    const bot = getBot();
+    if (!bot) {
+      return reply.status(500).send({ error: 'Bot not initialized' });
+    }
+
+    const secretToken = request.headers['x-telegram-bot-api-secret-token'] as string;
+    const expectedToken = process.env.TELEGRAM_SECRET_TOKEN;
+
+    if (expectedToken && secretToken !== expectedToken) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+
+    try {
+      await bot.processUpdate(request.body as never);
+      return reply.send({ ok: true });
+    } catch (error) {
+      console.error('Webhook processing error:', error);
+      return reply.status(500).send({ error: 'Failed to process update' });
+    }
   });
 
   fastify.post('/link-code', { preHandler: authenticate }, async (request, reply) => {
