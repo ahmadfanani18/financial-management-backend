@@ -19,7 +19,7 @@ export async function telegramRoutes(fastify: FastifyInstance): Promise<void> {
     const secretToken = request.headers['x-telegram-bot-api-secret-token'] as string;
     const expectedToken = process.env.TELEGRAM_SECRET_TOKEN;
 
-    if (expectedToken && secretToken !== expectedToken) {
+    if (expectedToken && secretToken && secretToken !== expectedToken) {
       return reply.status(403).send({ error: 'Forbidden' });
     }
 
