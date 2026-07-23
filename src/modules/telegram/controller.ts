@@ -362,8 +362,9 @@ Gunakan menu di bawah atau ketik perintah:
 
     if (!chatId || !data) return;
 
+    // Answer callback query immediately to prevent "loading..." timeout
     try {
-      await this.bot.answerCallbackQuery(query.id);
+      await this.bot.answerCallbackQuery(query.id, { text: '⏳ Memproses...' });
     } catch (err: any) {
       if (err?.message?.includes('query is too old')) {
         return;
