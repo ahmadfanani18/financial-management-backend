@@ -77,7 +77,7 @@ const DEFAULT_MODELS: Record<string, string> = {
   mock: 'mock',
   claude: 'claude-3-5-sonnet-20241022',
   openai: 'gpt-4o-mini',
-  gemini: 'gemini-3.5-flash',
+  gemini: 'gemini-3.1-flash-lite',
 };
 
 const MODEL_MAX_TOKENS: Record<string, number> = {
@@ -86,6 +86,7 @@ const MODEL_MAX_TOKENS: Record<string, number> = {
   'claude-opus-4-20250514': 8192,
   'gpt-4o-mini': 65536,
   'gpt-4o': 16384,
+  'gemini-3.1-flash-lite': 8192,
   'gemini-3.5-flash': 8192,
   'gemini-2.0-flash': 8192,
   'gemini-2.0-pro': 8192,
