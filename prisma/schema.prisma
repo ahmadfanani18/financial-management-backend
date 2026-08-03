@@ -200,6 +200,7 @@ model TelegramSettings {
   isLinked        Boolean  @default(false)
   notifications   Json     @default("{\"budgetAlert\": true, \"goalProgress\": true, \"weeklySummary\": true, \"weeklySummaryDay\": 0, \"weeklySummaryTime\": \"09:00\", \"billsDue\": true}")
   lastWeeklySummarySent DateTime?
+  lastBillReminderSent   DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -421,6 +422,7 @@ model Bill {
   account       Account       @relation(fields: [accountId], references: [id])
   category      Category      @relation(fields: [categoryId], references: [id])
   transactions  Transaction[]
+  notifications Notification[]
 
   @@index([userId])
   @@index([executionDate])
@@ -555,8 +557,10 @@ model Notification {
   type      NotificationType @default(SYSTEM)
   isRead    Boolean          @default(false)
   createdAt DateTime         @default(now())
+  billId    String?
 
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bill      Bill?            @relation(fields: [billId], references: [id], onDelete: Cascade)
 }
 
 enum FeedbackType {

@@ -60,7 +60,16 @@ async function runNotificationCheck(): Promise<void> {
     }
 
     if (prefs.billsDue) {
-      await sendBillsDueReminder(bot, chatId, userId);
+      const lastSent = setting.lastBillReminderSent;
+      const canSend = !lastSent || (now.getTime() - lastSent.getTime() >= 24 * 60 * 60 * 1000);
+
+      if (canSend) {
+        await sendBillsDueReminder(bot, chatId, userId);
+        await prisma.telegramSettings.update({
+          where: { id: setting.id },
+          data: { lastBillReminderSent: now },
+        });
+      }
     }
 
     if (prefs.weeklySummary) {

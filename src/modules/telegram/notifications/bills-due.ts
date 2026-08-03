@@ -30,19 +30,31 @@ export async function sendBillsDueReminder(
 
   const now = new Date();
   const today = now.getDate();
-  const reminders: { name: string; amount: number; daysUntil: number }[] = [];
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const reminders: { name: string; amount: number; daysUntil: number; billId: string }[] = [];
 
   for (const bill of bills) {
     let daysUntil = bill.dueDate >= today
       ? bill.dueDate - today
       : bill.dueDate + (30 - today);
 
-    if (daysUntil <= 3 && daysUntil >= 0) {
-      if (daysUntil === 0) daysUntil = 1;
+    if (daysUntil === 1) {
+      const alreadySent = await prisma.notification.findFirst({
+        where: {
+          userId,
+          type: 'BILL_REMINDER',
+          billId: bill.id,
+          createdAt: { gte: startOfDay, lt: endOfDay },
+        },
+      });
+      if (alreadySent) continue;
+
       reminders.push({
         name: bill.name,
         amount: decryptAmount(bill.amount),
         daysUntil,
+        billId: bill.id,
       });
     }
   }
